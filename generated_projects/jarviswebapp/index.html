@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jarviswebapp — Haute Pâtisserie & 3D Bakery</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;0,900;1,400&display=swap" rel="stylesheet">
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Ambient Background Glows -->
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+
+    <!-- Navigation Header -->
+    <header class="luxury-nav">
+        <div class="nav-container">
+            <a href="#" class="brand-logo">
+                <i class="fa-solid fa-crown logo-icon"></i>
+                <span>JARVISWEBAPP</span>
+            </a>
+            <nav class="nav-links">
+                <a href="#hero" class="active"><i class="fa-solid fa-house"></i> Home</a>
+                <a href="#menu"><i class="fa-solid fa-cake-candles"></i> Menu</a>
+                <a href="#customizer"><i class="fa-solid fa-wand-magic-sparkles"></i> 3D Customizer</a>
+                <a href="#reviews"><i class="fa-solid fa-star"></i> Reviews</a>
+                <a href="#contact"><i class="fa-solid fa-location-dot"></i> Visit Us</a>
+            </nav>
+            <div class="nav-actions">
+                <button id="cartToggleBtn" class="cart-btn" aria-label="View Cart">
+                    <i class="fa-solid fa-bag-shopping"></i>
+                    <span id="cartCountBadge" class="cart-badge">0</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section with Live Three.js 3D Canvas -->
+    <section id="hero" class="hero-section">
+        <div class="hero-content">
+            <div class="hero-badge">
+                <i class="fa-solid fa-sparkles"></i> ARTISANAL 3D CULINARY EXPERIENCE
+            </div>
+            <h1 class="hero-title">Crafting <span class="gradient-text">Sweet Moments</span> in 3D Luxury</h1>
+            <p class="hero-subtitle">Indulge in mastercrafted cakes, velvet pastries, and bespoke celebratory centerpieces designed with precision and culinary passion.</p>
+            <div class="hero-cta-group">
+                <a href="#menu" class="btn btn-primary">
+                    <i class="fa-solid fa-utensils"></i> Explore Menu
+                </a>
+                <a href="#customizer" class="btn btn-secondary">
+                    <i class="fa-solid fa-cube"></i> Customize in 3D
+                </a>
+            </div>
+            <div class="hero-stats">
+                <div class="stat-card">
+                    <span class="stat-number">100%</span>
+                    <span class="stat-label">Organic Ingredients</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number">4.9 ★</span>
+                    <span class="stat-label">Customer Rating</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number">30 Min</span>
+                    <span class="stat-label">Express Delivery</span>
+                </div>
+            </div>
+        </div>
+        <div class="hero-3d-wrapper">
+            <div class="canvas-glass-card">
+                <div class="canvas-header">
+                    <span><i class="fa-solid fa-cube"></i> INTERACTIVE 3D CAKE MODEL</span>
+                    <span class="canvas-tag">Drag to Rotate</span>
+                </div>
+                <div id="threejsCanvasContainer" class="three-container"></div>
+                <div class="canvas-controls">
+                    <button id="rotateToggleBtn" class="btn-ctrl" title="Toggle Auto-Rotation"><i class="fa-solid fa-rotate"></i> Rotate</button>
+                    <button id="frostingColorBtn" class="btn-ctrl" title="Change Flavor Accent"><i class="fa-solid fa-palette"></i> Flavor Glow</button>
+                    <button id="sparkleEffectBtn" class="btn-ctrl" title="Sparkle Effects"><i class="fa-solid fa-wand-magic"></i> Sparkle</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Menu & Catalog Section -->
+    <section id="menu" class="menu-section">
+        <div class="section-header">
+            <div class="section-tag"><i class="fa-solid fa-award"></i> CHEF'S SIGNATURE CREATIONS</div>
+            <h2 class="section-title">Explore Our Delicacies</h2>
+            <p class="section-desc">Handcrafted daily using imported Belgian cocoa, Madagascar vanilla, and farm-fresh berries.</p>
+        </div>
+
+        <!-- Filter Tabs & Search -->
+        <div class="filter-controls">
+            <div class="filter-tabs">
+                <button class="tab-btn active" data-category="all">All Specialties</button>
+                <button class="tab-btn" data-category="signature">Signature Cakes</button>
+                <button class="tab-btn" data-category="cupcakes">Gourmet Cupcakes</button>
+                <button class="tab-btn" data-category="pastries">French Pastries</button>
+                <button class="tab-btn" data-category="wedding">Custom & Wedding</button>
+            </div>
+            <div class="search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="menuSearchInput" placeholder="Search chocolate, velvet, berries...">
+            </div>
+        </div>
+
+        <!-- Product Grid -->
+        <div id="productGrid" class="product-grid">
+            <!-- Rendered by app.js -->
+        </div>
+    </section>
+
+    <!-- Interactive 3D Cake Customizer Studio -->
+    <section id="customizer" class="customizer-section">
+        <div class="customizer-card">
+            <div class="customizer-left">
+                <div class="section-tag"><i class="fa-solid fa-wand-magic-sparkles"></i> 3D BESPOKE STUDIO</div>
+                <h2 class="customizer-title">Design Your Dream Cake</h2>
+                <p>Customize tiers, luxury flavors, toppings, and personal inscriptions. See real-time price calculation.</p>
+                
+                <form id="cakeCustomizerForm" class="customizer-form">
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-layer-group"></i> Cake Tiers</label>
+                        <div class="option-pills" id="tierOptions">
+                            <button type="button" class="pill active" data-value="1" data-price="0">1 Tier (1 kg)</button>
+                            <button type="button" class="pill" data-value="2" data-price="450">2 Tiers (2.5 kg) +₹450</button>
+                            <button type="button" class="pill" data-value="3" data-price="950">3 Tiers Grand (5 kg) +₹950</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-ice-cream"></i> Base Flavor</label>
+                        <select id="flavorSelect" class="luxury-select">
+                            <option value="Belgian Dark Truffle" data-price="0">Belgian Dark Truffle</option>
+                            <option value="Red Velvet Cream Cheese" data-price="120">Red Velvet Cream Cheese (+₹120)</option>
+                            <option value="Madagascar Vanilla Berry" data-price="90">Madagascar Vanilla Berry (+₹90)</option>
+                            <option value="Salted Caramel Biscoff" data-price="150">Salted Caramel Biscoff (+₹150)</option>
+                            <option value="Matcha Pistachio Royal" data-price="200">Matcha Pistachio Royal (+₹200)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-sparkles"></i> Luxury Toppings</label>
+                        <div class="checkbox-grid">
+                            <label class="check-container">
+                                <input type="checkbox" value="Gold Leaf 24K" data-price="250">
+                                <span class="checkmark"></span> 24K Edible Gold Leaf (+₹250)
+                            </label>
+                            <label class="check-container">
+                                <input type="checkbox" value="Fresh Berries Medley" data-price="180" checked>
+                                <span class="checkmark"></span> Fresh Berries (+₹180)
+                            </label>
+                            <label class="check-container">
+                                <input type="checkbox" value="French Macarons" data-price="220" checked>
+                                <span class="checkmark"></span> French Macarons (+₹220)
+                            </label>
+                            <label class="check-container">
+                                <input type="checkbox" value="Ferrero Rocher Cluster" data-price="190">
+                                <span class="checkmark"></span> Ferrero Rocher (+₹190)
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-pen-nib"></i> Cake Inscription</label>
+                        <input type="text" id="cakeMessageInput" class="luxury-input" placeholder="e.g. Happy 25th Birthday Alex!" maxlength="40">
+                    </div>
+
+                    <div class="customizer-footer">
+                        <div class="customizer-price">
+                            <span>Estimated Total:</span>
+                            <strong id="customizerTotalDisplay">₹1,299</strong>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-glow">
+                            <i class="fa-solid fa-cart-plus"></i> Add Custom Cake to Cart
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="customizer-right">
+                <div class="preview-badge"><i class="fa-solid fa-eye"></i> LIVE 3D PREVIEW</div>
+                <div id="customizer3DViewport" class="customizer-3d-box"></div>
+                <div class="customizer-tips">
+                    <p><i class="fa-solid fa-circle-info"></i> All custom cakes include complimentary candles, golden cake knife, and greeting card.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Reviews & Testimonials Section -->
+    <section id="reviews" class="reviews-section">
+        <div class="section-header">
+            <div class="section-tag"><i class="fa-solid fa-heart"></i> GOURMET EXPERIENCES</div>
+            <h2 class="section-title">Loved by Thousands</h2>
+            <p class="section-desc">Read verified reviews from celebrating families and food connoisseurs.</p>
+        </div>
+        <div class="reviews-grid">
+            <div class="review-card">
+                <div class="stars">★★★★★</div>
+                <p class="review-text">"The Belgian Dark Truffle was the star of our anniversary! Rich, moist, perfectly balanced sweetness, and the 3D gold leaf presentation was breathtaking."</p>
+                <div class="reviewer">
+                    <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop" alt="Priya S." class="reviewer-avatar">
+                    <div>
+                        <strong>Priya Sharma</strong>
+                        <span>Verified Buyer • Bangalore</span>
+                    </div>
+                </div>
+            </div>
+            <div class="review-card">
+                <div class="stars">★★★★★</div>
+                <p class="review-text">"Ordered a 3-tier custom wedding cake using their 3D designer. It arrived exactly as previewed, on time, and tasted like pure royalty."</p>
+                <div class="reviewer">
+                    <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop" alt="Rahul M." class="reviewer-avatar">
+                    <div>
+                        <strong>Rahul Menon</strong>
+                        <span>Food Critic • Indiranagar</span>
+                    </div>
+                </div>
+            </div>
+            <div class="review-card">
+                <div class="stars">★★★★★</div>
+                <p class="review-text">"The French Macarons and Matcha Gateau are out of this world. Clean packaging, premium service, and super fast delivery!"</p>
+                <div class="reviewer">
+                    <img src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&auto=format&fit=crop" alt="Ananya R." class="reviewer-avatar">
+                    <div>
+                        <strong>Ananya Ray</strong>
+                        <span>Regular Connoisseur</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Sliding Shopping Cart Drawer -->
+    <div id="cartDrawer" class="cart-drawer">
+        <div class="cart-overlay" id="cartOverlay"></div>
+        <div class="cart-panel">
+            <div class="cart-header">
+                <h3><i class="fa-solid fa-bag-shopping"></i> Your Luxury Cart</h3>
+                <button id="closeCartBtn" class="close-btn">&times;</button>
+            </div>
+            <div id="cartItemsList" class="cart-items">
+                <!-- Injected via JavaScript -->
+            </div>
+            <div class="cart-footer">
+                <div class="cart-summary-row">
+                    <span>Subtotal:</span>
+                    <strong id="cartSubtotal">₹0.00</strong>
+                </div>
+                <div class="cart-summary-row">
+                    <span>GST (5%):</span>
+                    <strong id="cartTax">₹0.00</strong>
+                </div>
+                <div class="cart-summary-row">
+                    <span>Delivery:</span>
+                    <strong class="text-green">FREE</strong>
+                </div>
+                <div class="cart-summary-total">
+                    <span>Total Payable:</span>
+                    <strong id="cartGrandTotal">₹0.00</strong>
+                </div>
+                <button id="checkoutBtn" class="btn btn-primary btn-block btn-glow">
+                    <i class="fa-solid fa-lock"></i> Proceed to Secure Checkout
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Checkout Modal -->
+    <div id="checkoutModal" class="modal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-credit-card"></i> Complete Your Order</h3>
+                <button id="closeModalBtn" class="close-modal-btn">&times;</button>
+            </div>
+            <form id="paymentForm" class="modal-body">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" class="luxury-input" value="Tony Stark" required>
+                </div>
+                <div class="form-group">
+                    <label>Delivery Address</label>
+                    <input type="text" class="luxury-input" value="Stark Tower, 10880 Malibu Point" required>
+                </div>
+                <div class="form-group">
+                    <label>Payment Method</label>
+                    <div class="payment-options">
+                        <label class="pay-option selected">
+                            <input type="radio" name="paymethod" checked>
+                            <span><i class="fa-solid fa-mobile-screen"></i> Instant UPI / QR</span>
+                        </label>
+                        <label class="pay-option">
+                            <input type="radio" name="paymethod">
+                            <span><i class="fa-regular fa-credit-card"></i> Credit / Debit Card</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-total-banner">
+                    <span>Amount to Pay:</span>
+                    <strong id="modalTotalPayable">₹0.00</strong>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block btn-glow">
+                    <i class="fa-solid fa-shield-check"></i> Authorize & Pay
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toastNotification" class="toast">
+        <i class="fa-solid fa-circle-check"></i>
+        <span id="toastMessage">Item added to cart!</span>
+    </div>
+
+    <!-- Footer -->
+    <footer id="contact" class="luxury-footer">
+        <div class="footer-container">
+            <div class="footer-col">
+                <a href="#" class="brand-logo">
+                    <i class="fa-solid fa-crown logo-icon"></i>
+                    <span>JARVISWEBAPP</span>
+                </a>
+                <p>Artisanal confectionery engineered with passion, precision, and the finest organic ingredients on Earth.</p>
+            </div>
+            <div class="footer-col">
+                <h4>Quick Navigation</h4>
+                <ul>
+                    <li><a href="#hero">Home</a></li>
+                    <li><a href="#menu">Chef's Menu</a></li>
+                    <li><a href="#customizer">3D Cake Studio</a></li>
+                    <li><a href="#reviews">Customer Stories</a></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Boutique Hours</h4>
+                <p><i class="fa-regular fa-clock"></i> Mon - Sun: 08:00 AM - 11:30 PM</p>
+                <p><i class="fa-solid fa-phone"></i> +91 (800) 555-CAKE</p>
+                <p><i class="fa-solid fa-envelope"></i> concierge@jarviswebapp.com</p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>© 2026 Jarviswebapp. Autonomous 3D Architecture by J.A.R.V.I.S. Multi-Agent Protocol.</p>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>

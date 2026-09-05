@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeA - Hotel Web App</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <ul>
+                <li><a href="#rooms">Rooms</a></li>
+                <li><a href="#amenities">Amenities</a></li>
+                <li><a href="#booking">Booking</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <section id="rooms">
+            <h2>Available Rooms</h2>
+            <ul>
+                <li>
+                    <h3>Deluxe Room</h3>
+                    <p>King-size bed, city view, and luxurious amenities</p>
+                    <button>Book Now</button>
+                </li>
+                <li>
+                    <h3>Standard Room</h3>
+                    <p>Double bed, comfortable amenities, and a great view</p>
+                    <button>Book Now</button>
+                </li>
+            </ul>
+        </section>
+        <section id="amenities">
+            <h2>Amenities</h2>
+            <ul>
+                <li>Fitness Center</li>
+                <li>Sauna and Steam Room</li>
+                <li>Swimming Pool</li>
+                <li>Restaurant and Bar</li>
+            </ul>
+        </section>
+        <section id="booking">
+            <h2>Book Your Stay</h2>
+            <form>
+                <label for="check-in">Check-in:</label>
+                <input type="date" id="check-in" name="check-in">
+                <label for="check-out">Check-out:</label>
+                <input type="date" id="check-out" name="check-out">
+                <button type="submit">Book Now</button>
+            </form>
+        </section>
+    </main>
+    <script src="app.js"></script>
+</body>
+</html>

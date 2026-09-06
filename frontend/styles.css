@@ -882,3 +882,178 @@ input:checked + .slider:before { transform: translateX(16px); }
 @keyframes scanLine { 0% { top: 0; } 100% { top: 100%; } }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes scaleUp { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+
+/* --- Embedded Holographic HUD Widgets (Time & Weather) --- */
+.hud-embedded-card {
+    margin-top: 14px;
+    background: rgba(10, 15, 28, 0.75);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(0, 240, 255, 0.25);
+    border-radius: 12px;
+    padding: 16px 18px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    position: relative;
+    overflow: hidden;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.hud-embedded-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--primary-cyan), transparent);
+}
+
+.hud-embedded-card .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.hud-embedded-card .card-badge {
+    font-family: var(--font-hud);
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--primary-cyan);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-transform: uppercase;
+}
+
+.hud-embedded-card .tz-pill,
+.hud-embedded-card .condition-pill {
+    background: rgba(0, 240, 255, 0.1);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    color: var(--primary-cyan);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 50px;
+}
+
+.time-card .card-hero-metric {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.time-card .big-time {
+    font-family: var(--font-hud);
+    font-size: 32px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 1px;
+    text-shadow: 0 0 15px var(--primary-cyan-glow);
+}
+
+.time-card .time-24h {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.time-card .card-details-row {
+    display: flex;
+    gap: 18px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: #94a3b8;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 10px;
+    flex-wrap: wrap;
+}
+
+/* Weather Card */
+.weather-card .weather-main-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.weather-card .temp-block {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.weather-card .temp-big {
+    font-family: var(--font-hud);
+    font-size: 36px;
+    font-weight: 800;
+    color: #fff;
+    text-shadow: 0 0 20px var(--primary-cyan-glow);
+}
+
+.weather-card .temp-sub {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+.weather-card .feels-block {
+    text-align: right;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.weather-card .feels-block strong {
+    display: block;
+    color: var(--accent-gold);
+    font-size: 16px;
+}
+
+.weather-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.wm-node {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    padding: 8px;
+    text-align: center;
+}
+
+.wm-node .wm-lbl {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.wm-node .wm-val {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--primary-cyan);
+}
+
+.weather-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.live-dot-tag {
+    color: #10b981;
+    font-weight: 600;
+}
+

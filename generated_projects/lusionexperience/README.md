@@ -1,4 +1,4 @@
-# Lusion Neo // Creative 3D Studio — Lusion 3D Interactive Web Experience
+# Lusionexperience — Lusion 3D Interactive Web Experience
 
 Autonomous 3D Web Application architected by **J.A.R.V.I.S. Multi-Agent Protocol**.
 

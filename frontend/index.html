@@ -25,6 +25,10 @@
 
         <div class="hud-metrics">
             <div class="metric-item">
+                <span class="metric-label">SYSTEM TIME</span>
+                <span id="hudLiveClock" class="metric-val text-cyan">--:--:--</span>
+            </div>
+            <div class="metric-item">
                 <span class="metric-label">OLLAMA</span>
                 <span id="ollamaStatus" class="metric-val status-online">CHECKING...</span>
             </div>
@@ -165,10 +169,11 @@
 
             <!-- Quick Action Suggestion Chips -->
             <div class="quick-chips">
-                <button class="chip-btn" onclick="sendQuickPrompt('Build a beautiful web page for a modern Cake Shop with product menu, reviews, and cart')">🍰 Build Cake Shop</button>
+                <button class="chip-btn" onclick="sendQuickPrompt('What time is it right now?')">🕒 Current Time</button>
+                <button class="chip-btn" onclick="sendQuickPrompt('What is the original climate and weather outside?')">🌤️ Live Weather</button>
+                <button class="chip-btn" onclick="sendQuickPrompt('Build a 3D website like lusion in a smooth way')">🌐 Lusion 3D Website</button>
                 <button class="chip-btn" onclick="sendQuickPrompt('Order a Chicken Biryani on Swiggy to Koramangala, Bangalore')">🍛 Swiggy Biryani</button>
                 <button class="chip-btn" onclick="sendQuickPrompt('Open Notepad')">📝 Open Notepad</button>
-                <button class="chip-btn" onclick="sendQuickPrompt('Open Calculator')">🧮 Open Calculator</button>
                 <button class="chip-btn" onclick="sendQuickPrompt('Book a flight from Mumbai to Delhi for next Monday')">✈️ Book Flight</button>
             </div>
 

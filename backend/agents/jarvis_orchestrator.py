@@ -2,6 +2,7 @@ import re
 import json
 import logging
 from typing import Dict, Any, List, Optional, Callable
+from datetime import datetime
 from backend.config import MODEL_ROUTING
 from backend.ollama_client import ollama_client
 from backend.agents.reasoning_agent import reasoning_agent
@@ -10,6 +11,8 @@ from backend.agents.booking_agent import booking_agent
 from backend.agents.vision_agent import vision_agent
 from backend.agents.tts_agent import tts_agent
 from backend.tools.app_launcher import app_launcher
+from backend.tools.time_tool import time_tool
+from backend.tools.weather_tool import weather_tool
 from backend.prompts import (
     JARVIS_ORCHESTRATOR_SYSTEM_PROMPT as JARVIS_SYSTEM_PROMPT,
     SLOT_EXTRACTOR_SYSTEM_PROMPT
@@ -149,6 +152,10 @@ Output ONLY a JSON object:
         if any(w in lower for w in ["cancel payment", "cancel order", "abort booking", "don't buy", "no cancel"]) and booking_agent.pending_confirmation:
             return "cancel_payment"
 
+        # Real-Time Clock & Date Queries
+        if re.search(r'\b(what\s+time|current\s+time|what\s+is\s+the\s+time|tell\s+me\s+the\s+time|the\s+time\s+now|time\s+is\s+it|time\s+now|today(?:\'s|\s)?\s*date|what(?:\'s|\s+is)?\s*(?:the\s+)?date|what\s+day\s+is\s+today|what\s+day\s+is\s+it|what\s+day\s+today)\b', lower) or (re.search(r'\btime\b', lower) and any(w in lower for w in ["what", "tell", "current", "now", "in", "is it", "please"])):
+            return "time_query"
+
         # Weather & Climate Queries
         if re.search(r'\b(weather|temperature|forecast|climate|how hot|how cold|is it raining|rain today)\b', lower):
             return "weather_query"
@@ -158,7 +165,7 @@ Output ONLY a JSON object:
             return "open_app"
 
         # Web development
-        if re.search(r'\b(build|create|make|generate|code|develop)\b', lower) and any(w in lower for w in ["website", "web app", "app", "application", "dashboard", "frontend", "game", "clone", "page", "portfolio", "tool", "cake shop", "shop"]):
+        if re.search(r'\b(build|create|make|generate|code|develop)\b', lower) and any(w in lower for w in ["website", "web app", "app", "application", "dashboard", "frontend", "game", "clone", "page", "portfolio", "tool", "cake shop", "shop", "lusion", "3d"]):
             return "build_web_app"
 
         # Food ordering (strictly using word boundaries to prevent 'weather' matching 'eat')
@@ -199,24 +206,44 @@ Output ONLY a JSON object:
             tts_res = await tts_agent.synthesize(reply)
             return {"type": "app_launched", "reply": reply, "details": res, "audio_url": tts_res.get("audio_url")}
 
-        # --- 0.5 WEATHER & CLIMATE ---
-        if intent == "weather_query":
+        # --- 0.4 REAL-TIME CLOCK & GLOBAL TIMEZONES ---
+        if intent == "time_query":
             if emit_event:
-                await emit_event("agent_status", {"agent": "VoiceConvoAgent", "status": "Analyzing atmospheric sensors..."})
+                await emit_event("agent_status", {"agent": "VoiceConvoAgent", "status": "Consulting atomic system clock..."})
 
-            city_match = re.search(r'(?:in|for|at)\s+([a-zA-Z\s]+?)(?:\?|$|\.|\s+today)', user_message, re.IGNORECASE)
-            city = city_match.group(1).strip().title() if city_match else "your local area"
+            city_match = re.search(r'\b(?:in|for|at|of)\b\s+([a-zA-Z\s]+?)(?:\?|$|\.|\s+now|\s+right now)', user_message, re.IGNORECASE)
+            city = city_match.group(1).strip() if city_match else None
 
-            weather_prompt = f"The user is asking: '{user_message}'. As J.A.R.V.I.S., provide a sophisticated atmospheric condition update for {city}. Mention the temperature, cloud cover, and advice for the day. Keep it crisp, elegant, and concise in your Tony Stark Jarvis persona."
-            response = await ollama_client.generate(
-                model=self.convo_model,
-                prompt=weather_prompt,
-                system=JARVIS_SYSTEM_PROMPT
-            )
-            reply = response.strip()
+            time_res = time_tool.get_current_time(city)
+            reply = time_res["spoken"]
             self.conversation_history.append({"role": "assistant", "content": reply})
             tts_res = await tts_agent.synthesize(reply)
-            return {"type": "weather_report", "reply": reply, "city": city, "audio_url": tts_res.get("audio_url")}
+            return {
+                "type": "time_report",
+                "reply": reply,
+                "time_data": time_res,
+                "audio_url": tts_res.get("audio_url")
+            }
+
+        # --- 0.5 LIVE CLIMATE & WEATHER TELEMETRY ---
+        if intent == "weather_query":
+            if emit_event:
+                await emit_event("agent_status", {"agent": "VoiceConvoAgent", "status": "Accessing live atmospheric telemetry sensors..."})
+
+            city_match = re.search(r'\b(?:in|for|at|of)\b\s+([a-zA-Z\s]+?)(?:\?|$|\.|\s+today|\s+right now)', user_message, re.IGNORECASE)
+            city = city_match.group(1).strip() if city_match else None
+
+            weather_res = weather_tool.get_live_weather(city)
+            reply = weather_res.get("spoken", f"Atmospheric telemetry currently unavailable for {city or 'your area'}, Sir.")
+            self.conversation_history.append({"role": "assistant", "content": reply})
+            tts_res = await tts_agent.synthesize(reply)
+            return {
+                "type": "weather_report",
+                "reply": reply,
+                "weather_data": weather_res,
+                "city": weather_res.get("city"),
+                "audio_url": tts_res.get("audio_url")
+            }
 
         # --- 1. PAYMENT / CONFIRMATION GATE ---
         if intent == "confirm_payment":
@@ -420,7 +447,9 @@ Output ONLY a JSON object:
         if emit_event:
             await emit_event("agent_status", {"agent": "JARVIS", "status": "Formulating response..."})
 
-        prompt = f"""Conversation History:
+        now_str = datetime.now().strftime('%A, %B %d, %Y at %I:%M %p')
+        prompt = f"""Current System Date & Time: {now_str}
+Conversation History:
 {json.dumps(self.conversation_history[-6:], indent=2)}
 
 User: {user_message}

@@ -37,6 +37,20 @@ class JarvisClient {
         this.confirmPaymentBtn = document.getElementById("confirmPaymentBtn");
         this.cancelPaymentBtn = document.getElementById("cancelPaymentBtn");
         this.resetSessionBtn = document.getElementById("resetSessionBtn");
+        this.hudLiveClock = document.getElementById("hudLiveClock");
+
+        this.initClockTicker();
+    }
+
+    initClockTicker() {
+        const updateClock = () => {
+            if (this.hudLiveClock) {
+                const now = new Date();
+                this.hudLiveClock.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+            }
+        };
+        updateClock();
+        setInterval(updateClock, 1000);
     }
 
     initWebSocket() {
@@ -127,9 +141,12 @@ class JarvisClient {
 
             case "jarvis_response":
                 this.resetAllAgentStatus();
-                this.appendMessage("jarvis", data.reply);
+                this.appendMessage("jarvis", data.reply, data);
                 if (data.audio_url) {
                     this.speak(data.audio_url);
+                }
+                if (data.project) {
+                    this.displayCreatedApp(data.project);
                 }
                 if (data.booking && data.booking.requires_approval) {
                     this.showApprovalModal(data.booking);
@@ -256,7 +273,7 @@ class JarvisClient {
         this.setReactorState("STANDBY", "STANDBY");
     }
 
-    appendMessage(sender, text) {
+    appendMessage(sender, text, meta = {}) {
         const msgCard = document.createElement("div");
         msgCard.className = `message-card ${sender === "user" ? "user-card" : "jarvis-card"}`;
         
@@ -270,11 +287,82 @@ class JarvisClient {
             .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" style="color:#00f0ff;">$1</a>')
             .replace(/\n/g, '<br>');
 
+        // Time Widget HTML
+        let widgetHtml = "";
+        if (meta && meta.time_data) {
+            const t = meta.time_data;
+            widgetHtml = `
+                <div class="hud-embedded-card time-card">
+                    <div class="card-top">
+                        <span class="card-badge">⏱️ ${t.card_title || 'ATOMIC TIMEKEEPING'}</span>
+                        <span class="tz-pill">${t.timezone}</span>
+                    </div>
+                    <div class="card-hero-metric">
+                        <span class="big-time">${t.time_12h}</span>
+                        <span class="time-24h">${t.time_24h} (24H)</span>
+                    </div>
+                    <div class="card-details-row">
+                        <span>📅 ${t.day}</span>
+                        <span>🗓️ ${t.date}</span>
+                        <span>📍 ${t.city}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Weather Widget HTML
+        if (meta && meta.weather_data && meta.weather_data.status === "success") {
+            const w = meta.weather_data;
+            widgetHtml = `
+                <div class="hud-embedded-card weather-card">
+                    <div class="card-top">
+                        <span class="card-badge"><span class="w-icon">${w.icon || '🌤️'}</span> ${w.display_location || w.city}</span>
+                        <span class="condition-pill">${w.condition}</span>
+                    </div>
+                    <div class="weather-main-row">
+                        <div class="temp-block">
+                            <span class="temp-big">${w.temperature_c}°C</span>
+                            <span class="temp-sub">/ ${w.temperature_f}°F</span>
+                        </div>
+                        <div class="feels-block">
+                            <span>Feels like</span>
+                            <strong>${w.feels_like_c}°C</strong>
+                        </div>
+                    </div>
+                    <div class="weather-metrics-grid">
+                        <div class="wm-node">
+                            <span class="wm-lbl">HUMIDITY</span>
+                            <span class="wm-val">${w.humidity}%</span>
+                        </div>
+                        <div class="wm-node">
+                            <span class="wm-lbl">WIND</span>
+                            <span class="wm-val">${w.wind_speed_kmh} km/h ${w.wind_direction}</span>
+                        </div>
+                        <div class="wm-node">
+                            <span class="wm-lbl">PRESSURE</span>
+                            <span class="wm-val">${w.pressure_hpa} hPa</span>
+                        </div>
+                        <div class="wm-node">
+                            <span class="wm-lbl">CLOUD COVER</span>
+                            <span class="wm-val">${w.cloud_cover}%</span>
+                        </div>
+                    </div>
+                    <div class="weather-card-footer">
+                        <span>Daily: <strong>${w.temp_min_c}°C</strong> to <strong>${w.temp_max_c}°C</strong></span>
+                        <span class="live-dot-tag">● LIVE OPEN-METEO SENSORS</span>
+                    </div>
+                </div>
+            `;
+        }
+
         msgCard.innerHTML = `
             <div class="msg-avatar">${avatarLetter}</div>
             <div class="msg-content">
                 <div class="msg-sender">${senderName}</div>
-                <div class="msg-body">${formattedText}</div>
+                <div class="msg-body">
+                    ${formattedText}
+                    ${widgetHtml}
+                </div>
             </div>
         `;
 

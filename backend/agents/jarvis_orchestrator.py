@@ -14,6 +14,7 @@ from backend.agents.tts_agent import tts_agent
 from backend.tools.app_launcher import app_launcher
 from backend.tools.time_tool import time_tool
 from backend.tools.weather_tool import weather_tool
+from backend.tools.web_search_tool import web_search_tool
 from backend.prompts import (
     JARVIS_ORCHESTRATOR_SYSTEM_PROMPT as JARVIS_SYSTEM_PROMPT,
     SLOT_EXTRACTOR_SYSTEM_PROMPT
@@ -167,7 +168,7 @@ Output ONLY a JSON object:
             return "time_query"
 
         # Weather & Climate Queries
-        if re.search(r'\b(weather|temperature|forecast|climate|how hot|how cold|is it raining|rain today)\b', lower):
+        if re.search(r'\b(weather|temperatures?|forecasts?|climates?|humidity|rain|raining|how hot|how cold|is it raining|rain today)\b', lower):
             return "weather_query"
 
         # Open any local application or tool on laptop
@@ -240,8 +241,45 @@ Output ONLY a JSON object:
             if emit_event:
                 await emit_event("agent_status", {"agent": "VoiceConvoAgent", "status": "Accessing live atmospheric telemetry sensors..."})
 
+            city = None
+            # Pattern 1: in/for/at/of <City>
             city_match = re.search(r'\b(?:in|for|at|of)\b\s+([a-zA-Z\s]+?)(?:\?|$|\.|\s+today|\s+right now)', user_message, re.IGNORECASE)
-            city = city_match.group(1).strip() if city_match else None
+            if city_match:
+                cand = city_match.group(1).strip()
+                if cand.lower() not in ["here", "my area", "local", "outside", "today", "now"]:
+                    city = cand
+
+            # Pattern 2: <City> weather/climate/temperature
+            if not city:
+                city_rev_match = re.search(r'([a-zA-Z\s]+?)\s+(?:weather|climates?|temperatures?|forecasts?)', user_message, re.IGNORECASE)
+                if city_rev_match:
+                    cand = city_rev_match.group(1).strip()
+                    cand = re.sub(r'^(?:what\s+is\s+the|what\s+is|tell\s+me\s+the|how\s+is\s+the|tell\s+me|the|current|check|give\s+me)\s*', '', cand, flags=re.IGNORECASE).strip()
+                    stop_words = {"what", "how", "tell", "check", "today", "here", "the", "current", "this", "its", "our", "their", "accurate", "values", "value", "climates", "climate"}
+                    if cand and len(cand) > 2 and cand.lower() not in stop_words:
+                        city = cand
+
+            # Pattern 3: Major known cities mentioned anywhere in the user query
+            if not city:
+                major_cities = r'\b(chennai|bengaluru|bangalore|mumbai|delhi|kolkata|hyderabad|pune|coimbatore|madurai|trichy|kochi|london|tokyo|paris|new york|singapore|dubai|san francisco|chicago)\b'
+                direct_city = re.search(major_cities, user_message, re.IGNORECASE)
+                if direct_city:
+                    city = direct_city.group(1).title()
+
+            # Pattern 4: Fallback to recent conversation history (if user asks follow-up e.g. "climates values are not accurate")
+            if not city:
+                for prev in reversed(self.conversation_history[:-1]):
+                    content = prev.get("content", "")
+                    m_hist = re.search(r'\b(chennai|bengaluru|bangalore|mumbai|delhi|kolkata|hyderabad|pune|coimbatore|madurai|trichy|kochi|london|tokyo|paris|new york|singapore|dubai)\b', content, re.IGNORECASE)
+                    if m_hist:
+                        city = m_hist.group(1).title()
+                        break
+                    m_sens = re.search(r'(?:sensors\s+for|weather\s+in|climate\s+in)\s+([A-Za-z]+)', content, re.IGNORECASE)
+                    if m_sens:
+                        cand_sens = m_sens.group(1).strip().title()
+                        if cand_sens.lower() not in ["the", "local", "your", "my"]:
+                            city = cand_sens
+                            break
 
             weather_res = weather_tool.get_live_weather(city)
             reply = weather_res.get("spoken", f"Atmospheric telemetry currently unavailable for {city or 'your area'}, Sir.")
@@ -453,17 +491,26 @@ Output ONLY a JSON object:
                 "booking": booking_res
             }
 
-        # --- 5. GENERAL JARVIS CONVERSATION ---
+        # --- 5. GENERAL JARVIS CONVERSATION & REAL-TIME WEB INTELLIGENCE ---
+        live_web_block = ""
+        if web_search_tool.should_search(user_message, conversation_history=self.conversation_history):
+            if emit_event:
+                await emit_event("agent_status", {"agent": "VoiceConvoAgent", "status": "Accessing real-time global web telemetry..."})
+            search_context = await web_search_tool.search_web(user_message, conversation_history=self.conversation_history)
+            if search_context:
+                live_web_block = f"\nLive Real-Time Web Intelligence (Current Facts & News):\n{search_context}\n"
+
         if emit_event:
             await emit_event("agent_status", {"agent": "JARVIS", "status": "Formulating response..."})
 
         now_str = datetime.now().strftime('%A, %B %d, %Y at %I:%M %p')
         prompt = f"""Current System Date & Time: {now_str}
+{live_web_block}
 Conversation History:
 {json.dumps(self.conversation_history[-6:], indent=2)}
 
 User: {user_message}
-J.A.R.V.I.S.:"""
+Jarvis:"""
 
         full_tokens = []
         tts_task = None
@@ -483,6 +530,8 @@ J.A.R.V.I.S.:"""
                         match = re.search(r'^(.*?[.!?])(?:\s|\n|$)', partial, re.DOTALL)
                         if match and len(match.group(1).strip()) > 8:
                             first_sentence = match.group(1).strip()
+                            # Normalize dotted acronym to fluent word
+                            first_sentence = re.sub(r'\bJ\.?A\.?R\.?V\.?I\.?S\.?\b', 'Jarvis', first_sentence)
                             tts_task = asyncio.create_task(tts_agent.synthesize(first_sentence))
         except Exception as e:
             logger.warning(f"Streaming error in orchestrator: {e}")
@@ -495,7 +544,18 @@ J.A.R.V.I.S.:"""
             full_tokens = [response]
 
         response = "".join(full_tokens)
-        clean_response = ollama_client.extract_deepseek_reasoning(response)["content"]
+        clean_response = ollama_client.extract_deepseek_reasoning(response)["content"].strip()
+
+        # Normalize dotted J.A.R.V.I.S. to fluent word "Jarvis"
+        clean_response = re.sub(r'\bJ\.?A\.?R\.?V\.?I\.?S\.?\b', 'Jarvis', clean_response)
+
+        # If user didn't explicitly greet, strip unprompted opener greetings like "Good evening, Sir."
+        is_user_greeting = bool(re.search(r'\b(hello|hi|hey|good (morning|afternoon|evening|day)|greetings)\b', user_message, re.IGNORECASE))
+        if not is_user_greeting:
+            clean_response = re.sub(r'^(Good (morning|afternoon|evening|day)[,!]?\s*(Sir|Boss)?[.!]?\s*)', '', clean_response, flags=re.IGNORECASE).strip()
+            if clean_response:
+                clean_response = clean_response[0].upper() + clean_response[1:]
+
         self.conversation_history.append({"role": "assistant", "content": clean_response})
 
         audio_url = None

@@ -136,6 +136,13 @@
                 </label>
                 <span class="toggle-label">Jarvis Voice Synthesizer</span>
             </div>
+            <div class="voice-engine-wrapper" style="margin-top: 10px; padding: 6px 10px; background: rgba(0, 240, 255, 0.04); border: 1px solid rgba(0, 240, 255, 0.15); border-radius: 6px;">
+                <label style="display: block; font-size: 10px; color: #00f0ff; font-family: 'Orbitron', monospace; letter-spacing: 1px; margin-bottom: 4px;">VOICE LATENCY ENGINE</label>
+                <select id="voiceEngineSelect" style="width: 100%; background: #050d18; border: 1px solid rgba(0, 240, 255, 0.4); color: #00f0ff; border-radius: 4px; padding: 4px 6px; font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; outline: none;">
+                    <option value="zero_latency" selected>⚡ 0ms Zero-Latency (Instant OS Voice)</option>
+                    <option value="edge_neural">🎙️ Studio Neural (Edge-TTS British)</option>
+                </select>
+            </div>
         </aside>
 
         <!-- Center: Interactive Conversation & Voice Hub -->
@@ -278,6 +285,6 @@
         </div>
     </div>
 
-    <script type="module" src="/static/app.js"></script>
+    <script type="module" src="/static/app.js?v=5.2.0"></script>
 </body>
 </html>

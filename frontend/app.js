@@ -1,24 +1,16 @@
 // J.A.R.V.I.S. Multi-Agent HUD Client Engine
-import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.3';
-
-// Enforce offline model caching into CacheStorage
-env.allowLocalModels = false;
-env.useBrowserCache = true;
 
 class JarvisClient {
     constructor() {
         this.ws = null;
-        this.asrPipeline = null;
-        this.isModelLoading = false;
-        this.mediaRecorder = null;
-        this.audioChunks = [];
-        this.mediaStream = null;
+        this.recognition = null;
         this.isListening = false;
         this.voiceEnabled = true;
+        this.voiceEngine = "zero_latency"; // Default to instant 0ms OS voice!
         this.currentAudio = null;
 
         this.initDOM();
-        this.initWhisperPipeline();
+        this.initSpeechRecognition();
         this.initWebSocket();
         this.bindEvents();
     }
@@ -33,6 +25,13 @@ class JarvisClient {
         this.reactorStatus = document.getElementById("reactorStatus");
         this.ollamaStatus = document.getElementById("ollamaStatus");
         this.voiceToggle = document.getElementById("voiceSynthesisToggle");
+        this.voiceEngineSelect = document.getElementById("voiceEngineSelect");
+        if (this.voiceEngineSelect) {
+            this.voiceEngine = this.voiceEngineSelect.value || "zero_latency";
+            this.voiceEngineSelect.addEventListener("change", (e) => {
+                this.voiceEngine = e.target.value;
+            });
+        }
         this.thoughtLog = document.getElementById("thoughtLog");
         this.liveScreenshotImg = document.getElementById("liveScreenshotImg");
         this.browserUrlDisplay = document.getElementById("browserUrlDisplay");
@@ -128,9 +127,7 @@ class JarvisClient {
             case "payment_result":
                 this.hideApprovalModal();
                 this.appendMessage("jarvis", data.message);
-                if (data.audio_url) {
-                    this.speak(data.audio_url);
-                }
+                this.speak(data.audio_url, data.message);
                 if (data.portal_url) {
                     try {
                         window.open(data.portal_url, "_blank");
@@ -151,9 +148,7 @@ class JarvisClient {
             case "jarvis_response":
                 this.resetAllAgentStatus();
                 this.appendMessage("jarvis", data.reply, data);
-                if (data.audio_url) {
-                    this.speak(data.audio_url);
-                }
+                this.speak(data.audio_url, data.reply);
                 if (data.project) {
                     this.displayCreatedApp(data.project);
                 }
@@ -184,9 +179,7 @@ class JarvisClient {
             case "session_reset":
                 this.chatContainer.innerHTML = "";
                 this.appendMessage("jarvis", data.message);
-                if (data.audio_url) {
-                    this.speak(data.audio_url);
-                }
+                this.speak(data.audio_url, data.message);
                 break;
         }
     }
@@ -390,173 +383,163 @@ class JarvisClient {
         this.reactorStatus.textContent = text;
     }
 
-    // --- High-Performance Offline Speech-to-Text (Whisper Large-V3 Turbo via WebGPU/WASM) ---
-    async initWhisperPipeline() {
-        if (this.asrPipeline || this.isModelLoading) return;
-        this.isModelLoading = true;
-        const modelId = 'onnx-community/whisper-large-v3-turbo';
-        console.log(`[ASR] Initializing Whisper Large-V3 Turbo pipeline (${modelId})...`);
+    // --- Instant Real-Time Speech-to-Text (Continuous Natural Speech Recognition) ---
+    initSpeechRecognition() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            console.warn("[ASR] Native SpeechRecognition not supported in this browser. Please use Chrome, Edge, or Brave.");
+            this.recognition = null;
+            return;
+        }
 
-        const progressCallback = (progress) => {
-            if (progress.status === 'progress') {
-                const pct = Math.round((progress.loaded / (progress.total || 1)) * 100) || Math.round(progress.progress || 0);
-                const file = progress.file ? progress.file.split('/').pop() : 'model';
-                this.setReactorState("ACTIVE", `CACHING ${file.slice(0, 10).toUpperCase()} (${pct}%)`);
-            } else if (progress.status === 'done') {
-                this.setReactorState("ACTIVE", "COMPILING WEBGPU KERNELS...");
-            } else if (progress.status === 'ready') {
-                this.setReactorState("STANDBY", "WHISPER READY");
+        this.recognition = new SpeechRecognition();
+        this.recognition.continuous = true; // Stay listening continuously while user speaks
+        this.recognition.interimResults = true;
+        this.recognition.lang = 'en-US';
+        this.recognitionSilenceTimer = null;
+        this.silenceDelay = 3500; // 3.5 seconds of silence after speaking before auto-sending
+
+        this.recognition.onstart = () => {
+            this.isListening = true;
+            this.voiceBtn.classList.add("listening");
+            this.setReactorState("ACTIVE", "LISTENING (SPEAK FREELY)...");
+        };
+
+        this.recognition.onresult = (event) => {
+            let fullTranscript = "";
+            let interimTranscript = "";
+
+            for (let i = 0; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    fullTranscript += event.results[i][0].transcript + " ";
+                } else {
+                    interimTranscript += event.results[i][0].transcript;
+                }
+            }
+
+            const currentText = (fullTranscript + interimTranscript).trim();
+            if (currentText) {
+                this.chatInput.value = currentText;
+                this.setReactorState("ACTIVE", `HEARD: "${currentText.slice(-28)}"`);
+
+                // Reset silence timer whenever user speaks
+                if (this.recognitionSilenceTimer) {
+                    clearTimeout(this.recognitionSilenceTimer);
+                }
+
+                // Wait for natural 3.5s pause after speaking before auto-transmitting
+                this.recognitionSilenceTimer = setTimeout(() => {
+                    console.log("[ASR] Full message captured after complete sentence, transmitting...");
+                    this.stopListening(true);
+                }, this.silenceDelay);
             }
         };
 
-        try {
-            // Priority 1: Hardware-Accelerated WebGPU Execution
-            if (navigator.gpu) {
-                console.log("[ASR] WebGPU detected in navigator. Initializing hardware-accelerated pipeline...");
-                this.asrPipeline = await pipeline('automatic-speech-recognition', modelId, {
-                    device: 'webgpu',
-                    dtype: {
-                        encoder_model: 'fp16',
-                        decoder_model_merged: 'q4',
-                    },
-                    progress_callback: progressCallback
-                });
-                console.log("[ASR] WebGPU Whisper Large-V3 Turbo pipeline compiled successfully.");
-            } else {
-                throw new Error("WebGPU not available in browser runtime");
-            }
-        } catch (webGpuErr) {
-            console.warn("[ASR] WebGPU acceleration unavailable or failed, falling back to WebAssembly (WASM):", webGpuErr);
-            try {
-                this.asrPipeline = await pipeline('automatic-speech-recognition', modelId, {
-                    device: 'wasm',
-                    dtype: 'q4',
-                    progress_callback: progressCallback
-                });
-                console.log("[ASR] WASM Whisper Large-V3 Turbo pipeline initialized successfully.");
-            } catch (wasmErr) {
-                console.error("[ASR] Failed to initialize Whisper Large-V3 Turbo pipeline:", wasmErr);
-                this.setReactorState("ALERT", "ASR INIT ERROR");
-            }
-        } finally {
-            this.isModelLoading = false;
-            this.setReactorState("STANDBY", "STANDBY");
-        }
-    }
-
-    async toggleListening() {
-        if (this.isListening) {
-            this.stopRecording();
-        } else {
-            await this.startRecording();
-        }
-    }
-
-    async startRecording() {
-        try {
-            if (!this.asrPipeline && !this.isModelLoading) {
-                await this.initWhisperPipeline();
-            }
-            if (this.isModelLoading) {
-                this.appendMessage("jarvis", "Whisper Large-V3 Turbo is currently initializing in memory, Sir. Please allow a moment.");
+        this.recognition.onerror = (event) => {
+            console.warn("[ASR] Recognition error:", event.error);
+            if (event.error === 'no-speech') {
+                // Ignore transient no-speech pauses while waiting for user
                 return;
             }
+            this.stopListening(false);
+        };
 
-            this.audioChunks = [];
-            this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            this.mediaRecorder = new MediaRecorder(this.mediaStream);
-
-            this.mediaRecorder.ondataavailable = (event) => {
-                if (event.data && event.data.size > 0) {
-                    this.audioChunks.push(event.data);
-                }
-            };
-
-            this.mediaRecorder.onstop = async () => {
-                this.setReactorState("ACTIVE", "TRANSCRIBING (WHISPER TURBO)...");
-                const audioBlob = new Blob(this.audioChunks, { type: this.mediaRecorder.mimeType || 'audio/webm' });
-                
-                // Release audio hardware tracks
-                if (this.mediaStream) {
-                    this.mediaStream.getTracks().forEach(track => track.stop());
-                    this.mediaStream = null;
-                }
-
-                try {
-                    const float32Array = await this.convertBlobTo16kHzFloat32(audioBlob);
-                    if (!float32Array || float32Array.length < 1600) { // < 100ms
-                        console.warn("[ASR] Audio too short for transcription.");
-                        this.setReactorState("STANDBY", "STANDBY");
+        this.recognition.onend = () => {
+            if (this.isListening) {
+                const text = this.chatInput.value.trim();
+                if (!text) {
+                    // Seamlessly keep listening if user hasn't started talking yet
+                    try {
+                        this.recognition.start();
                         return;
-                    }
-
-                    const startTime = performance.now();
-                    const output = await this.asrPipeline(float32Array, {
-                        language: 'en',
-                        task: 'transcribe',
-                    });
-                    const inferenceTime = Math.round(performance.now() - startTime);
-                    const transcript = (typeof output === 'string' ? output : output?.text || "").trim();
-                    console.log(`[ASR] Transcribed in ${inferenceTime}ms: "${transcript}"`);
-
-                    if (transcript) {
-                        this.chatInput.value = transcript;
-                        this.sendMessage();
-                    }
-                } catch (err) {
-                    console.error("[ASR] Transcription evaluation error:", err);
-                } finally {
-                    this.setReactorState("STANDBY", "STANDBY");
+                    } catch (e) {}
+                } else if (!this.recognitionSilenceTimer) {
+                    // If recognition disconnected and text exists, finalize and transmit
+                    this.stopListening(true);
+                    return;
                 }
-            };
-
-            this.mediaRecorder.start();
-            this.isListening = true;
-            this.voiceBtn.classList.add("listening");
-            this.setReactorState("ACTIVE", "LISTENING (RECORDING)...");
-        } catch (err) {
-            console.error("[ASR] Microphone access error:", err);
-            alert("Microphone permission denied or audio input unavailable.");
+            }
             this.isListening = false;
             this.voiceBtn.classList.remove("listening");
             this.setReactorState("STANDBY", "STANDBY");
-        }
+        };
     }
 
-    stopRecording() {
-        if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
-            this.mediaRecorder.stop();
+    stopListening(shouldSend = false) {
+        if (this.recognitionSilenceTimer) {
+            clearTimeout(this.recognitionSilenceTimer);
+            this.recognitionSilenceTimer = null;
         }
+
         this.isListening = false;
         this.voiceBtn.classList.remove("listening");
+        this.setReactorState("STANDBY", "STANDBY");
+
+        if (this.recognition) {
+            try {
+                this.recognition.stop();
+            } catch (e) {}
+        }
+
+        if (shouldSend) {
+            const text = this.chatInput.value.trim();
+            if (text && text.length > 1) {
+                this.sendMessage();
+            }
+        }
     }
 
-    async convertBlobTo16kHzFloat32(blob) {
-        const arrayBuffer = await blob.arrayBuffer();
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const decodedAudio = await audioCtx.decodeAudioData(arrayBuffer);
+    toggleListening() {
+        if (!this.recognition) {
+            alert("Speech recognition requires a supported browser (Google Chrome, Microsoft Edge, or Brave).");
+            return;
+        }
 
-        // Resample and downmix to 16,000 Hz single-channel Float32Array via OfflineAudioContext
-        const targetSampleRate = 16000;
-        const offlineCtx = new OfflineAudioContext(
-            1,
-            Math.ceil(decodedAudio.duration * targetSampleRate),
-            targetSampleRate
-        );
-        const source = offlineCtx.createBufferSource();
-        source.buffer = decodedAudio;
-        source.connect(offlineCtx.destination);
-        source.start(0);
-        const rendered = await offlineCtx.startRendering();
-        await audioCtx.close();
-        return rendered.getChannelData(0);
+        if (this.isListening) {
+            // User manually clicked mic to finish speaking -> transmit immediately
+            this.stopListening(true);
+        } else {
+            // Start listening
+            try {
+                this.chatInput.value = "";
+                if (this.recognitionSilenceTimer) {
+                    clearTimeout(this.recognitionSilenceTimer);
+                    this.recognitionSilenceTimer = null;
+                }
+                this.isListening = true;
+                this.recognition.start();
+            } catch (e) {
+                console.warn("[ASR] Start recognition note:", e);
+                try {
+                    this.recognition.stop();
+                    setTimeout(() => {
+                        this.isListening = true;
+                        this.recognition.start();
+                    }, 200);
+                } catch (e2) {}
+            }
+        }
     }
 
-    // --- Dedicated Kokoro-82M High-Fidelity Audio Playback ---
-    speak(audioUrl) {
-        if (!this.voiceEnabled || !audioUrl) return;
+    // --- Instant Zero-Latency Voice Engine ---
+    speak(audioUrl, textFallback = "") {
+        if (!this.voiceEnabled) return;
 
-        // Stop any currently playing audio immediately to prevent overlap
+        // Clean markdown, formatting symbols, and normalize dotted J.A.R.V.I.S. to fluent "Jarvis"
+        let clean = (textFallback || "")
+            .replace(/\bJ\.?A\.?R\.?V\.?I\.?S\.?\b/gi, 'Jarvis')
+            .replace(/[*_~#`^|\\[\]]/g, '')
+            .replace(/\(.*?\)/g, '')
+            .replace(/<[^>]*>/g, '')
+            .trim();
+
+        // Mode 1: 0ms Zero-Latency (Immediate Browser OS Neural Synthesis)
+        if (this.voiceEngine === "zero_latency" && clean) {
+            this.speakBrowserFallback(clean);
+            return;
+        }
+
+        // Mode 2: Studio Neural (Edge-TTS) with seamless instant fallback
         if (this.currentAudio) {
             try {
                 this.currentAudio.pause();
@@ -565,30 +548,67 @@ class JarvisClient {
             this.currentAudio = null;
         }
 
-        const audio = new Audio(audioUrl);
-        audio.preload = "auto";
-        this.currentAudio = audio;
+        if (window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+        }
 
-        audio.onplay = () => this.setReactorState("ACTIVE", "SPEAKING (KOKORO)");
-        audio.onended = () => {
-            this.setReactorState("STANDBY", "STANDBY");
-            if (this.currentAudio === audio) {
-                this.currentAudio = null;
-            }
-        };
-        audio.onerror = (err) => {
-            console.warn("[HUD] Kokoro audio playback error:", err);
-            this.setReactorState("STANDBY", "STANDBY");
-            if (this.currentAudio === audio) {
-                this.currentAudio = null;
-            }
-        };
+        if (audioUrl) {
+            const audio = new Audio(audioUrl);
+            audio.preload = "auto";
+            this.currentAudio = audio;
 
-        // Instant sub-second playback
-        audio.play().catch(e => {
-            console.warn("[HUD] Audio playback waiting for first user gesture:", e);
-            this.setReactorState("STANDBY", "STANDBY");
-        });
+            audio.onplay = () => this.setReactorState("ACTIVE", "SPEAKING (JARVIS NEURAL)");
+            audio.onended = () => {
+                this.setReactorState("STANDBY", "STANDBY");
+                if (this.currentAudio === audio) this.currentAudio = null;
+            };
+            audio.onerror = (err) => {
+                console.warn("[HUD] Edge-TTS playback note, falling back to 0ms WebSpeech:", err);
+                if (this.currentAudio === audio) this.currentAudio = null;
+                if (clean) this.speakBrowserFallback(clean);
+            };
+
+            audio.play().catch(e => {
+                console.warn("[HUD] Audio autoplay requires user gesture:", e);
+                if (clean) this.speakBrowserFallback(clean);
+            });
+        } else if (clean) {
+            this.speakBrowserFallback(clean);
+        }
+    }
+
+    speakBrowserFallback(text) {
+        if (!window.speechSynthesis || !this.voiceEnabled) return;
+        let clean = (text || "")
+            .replace(/\bJ\.?A\.?R\.?V\.?I\.?S\.?\b/gi, 'Jarvis')
+            .replace(/[*_~#`^|\\[\]]/g, '')
+            .replace(/\(.*?\)/g, '')
+            .trim();
+        if (!clean) return;
+
+        // Cancel previous utterances to avoid speech stacking
+        window.speechSynthesis.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(clean);
+        utterance.lang = "en-GB";
+
+        // Prioritize natural British voices (George, Ryan, UK English)
+        const voices = window.speechSynthesis.getVoices();
+        const britishVoice = voices.find(v => 
+            v.lang === "en-GB" || 
+            v.name.includes("UK") || 
+            v.name.includes("British") || 
+            v.name.includes("George") ||
+            v.name.includes("Ryan")
+        );
+        if (britishVoice) utterance.voice = britishVoice;
+        utterance.rate = 1.08; // Crisp executive cadence
+
+        utterance.onstart = () => this.setReactorState("ACTIVE", "SPEAKING (0ms INSTANT)");
+        utterance.onended = () => this.setReactorState("STANDBY", "STANDBY");
+        utterance.onerror = () => this.setReactorState("STANDBY", "STANDBY");
+
+        window.speechSynthesis.speak(utterance);
     }
 
     sendMessage() {

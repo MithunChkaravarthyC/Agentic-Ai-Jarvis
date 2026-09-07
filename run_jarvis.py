@@ -18,8 +18,7 @@ def check_and_install_dependencies():
     print("   J.A.R.V.I.S. MULTI-AGENT PROTOCOL INITIALIZATION    ")
     print("=======================================================")
     
-    # Check if core packages are already present to avoid slow continuous pip checking
-    packages = ["fastapi", "uvicorn", "playwright", "httpx", "pydantic", "kokoro", "soundfile"]
+    packages = ["fastapi", "uvicorn", "playwright", "httpx", "pydantic", "edge_tts"]
     missing = []
     for pkg in packages:
         try:
@@ -108,8 +107,8 @@ def main():
     port = int(os.getenv("PORT", 0)) or get_available_port(8000)
     os.environ["PORT"] = str(port)
 
-    # Pre-warm Kokoro TTS engine in background for instant speech response
-    print(">> Pre-warming Kokoro-82M TTS neural engine...")
+    # Pre-warm TTS engine in background for instant speech response
+    print(">> Pre-warming J.A.R.V.I.S. Neural TTS engine...")
     try:
         from backend.agents.tts_agent import tts_agent
         tts_agent.warmup()

@@ -95,8 +95,68 @@ class WeatherTool:
             }
         return None
 
+    def _fetch_wttr_in(self, city_name: str) -> Optional[Dict[str, Any]]:
+        """Fetch real-time ground meteorological station observation via wttr.in (matches Google Weather / Airport METAR)."""
+        try:
+            encoded_city = urllib.parse.quote(city_name.strip())
+            url = f"https://wttr.in/{encoded_city}?format=j1"
+            data = self._http_get_json(url, timeout=4)
+            if data and data.get("current_condition"):
+                curr = data["current_condition"][0]
+                weather_today = data.get("weather", [{}])[0]
+
+                temp_c = float(curr.get("temp_C", 0))
+                feels_like_c = float(curr.get("FeelsLikeC", temp_c))
+                humidity = int(curr.get("humidity", 50))
+                wind_kmh = float(curr.get("windspeedKmph", 10.0))
+                wind_dir = curr.get("winddir16Point", "N")
+                cloud_cover = int(curr.get("cloudcover", 20))
+                pressure = float(curr.get("pressure", 1013.0))
+                desc_obj = curr.get("weatherDesc", [{}])[0]
+                desc = desc_obj.get("value", "Partly cloudy").strip()
+
+                max_c = float(weather_today.get("maxtempC", temp_c)) if weather_today.get("maxtempC") else temp_c
+                min_c = float(weather_today.get("mintempC", temp_c)) if weather_today.get("mintempC") else temp_c
+
+                spoken = (
+                    f"Sir, live atmospheric sensors for {city_name.title()} report {int(round(temp_c))}°C with {desc.lower()}. "
+                    f"Relative humidity is {humidity}%, feels like {int(round(feels_like_c))}°C, with winds at {int(round(wind_kmh))} km/h from the {wind_dir}."
+                )
+
+                return {
+                    "status": "success",
+                    "city": city_name.title(),
+                    "display_location": f"{city_name.title()}",
+                    "temperature_c": temp_c,
+                    "temperature_f": round(temp_c * 9 / 5 + 32, 1),
+                    "feels_like_c": feels_like_c,
+                    "feels_like_f": round(feels_like_c * 9 / 5 + 32, 1),
+                    "condition": desc,
+                    "condition_desc": desc.lower(),
+                    "icon": "⛅",
+                    "humidity": humidity,
+                    "wind_speed_kmh": wind_kmh,
+                    "wind_speed_mph": round(wind_kmh * 0.621371, 1),
+                    "wind_direction": wind_dir,
+                    "cloud_cover": cloud_cover,
+                    "pressure_hpa": pressure,
+                    "temp_max_c": max_c,
+                    "temp_min_c": min_c,
+                    "is_day": True,
+                    "spoken": spoken
+                }
+        except Exception as e:
+            logger.warning(f"wttr.in ground observation fetch note for {city_name}: {e}")
+        return None
+
     def get_live_weather(self, location_query: Optional[str] = None) -> Dict[str, Any]:
         """Fetch live authentic atmospheric metrics for the requested location."""
+        # Priority 1: Query live ground METAR observation if a specific city was requested
+        if location_query and len(location_query.strip()) > 1 and location_query.strip().lower() not in ["here", "my area", "local", "outside", "today"]:
+            ground_data = self._fetch_wttr_in(location_query.strip())
+            if ground_data:
+                return ground_data
+
         loc = None
         if location_query and len(location_query.strip()) > 1 and location_query.strip().lower() not in ["here", "my area", "local", "outside", "today"]:
             loc = self._geocode_city(location_query)
@@ -104,9 +164,16 @@ class WeatherTool:
         if not loc:
             loc = self._detect_local_location()
 
+        city = loc.get("city", "Local Area")
+
+        # Also attempt ground station observation for local detected city
+        if city and city != "Local Area":
+            ground_data = self._fetch_wttr_in(city)
+            if ground_data:
+                return ground_data
+
         lat = loc.get("lat", 12.9716)
         lon = loc.get("lon", 77.5946)
-        city = loc.get("city", "Local Area")
         country = loc.get("country", "")
         region = loc.get("region", "")
 

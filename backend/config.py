@@ -13,9 +13,9 @@ AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
-# TTS Configuration (Kokoro-82M)
-TTS_VOICE = os.getenv("JARVIS_TTS_VOICE", "bf_emma")  # British Female - JARVIS-like
-TTS_LANG_CODE = os.getenv("JARVIS_TTS_LANG", "b")     # 'b' = British English, 'a' = American English
+# TTS Configuration (Edge-TTS Neural / Kokoro Fallback)
+TTS_VOICE = os.getenv("JARVIS_TTS_VOICE", "en-GB-RyanNeural")  # Sophisticated British Male - J.A.R.V.I.S.
+TTS_LANG_CODE = os.getenv("JARVIS_TTS_LANG", "en-GB")
 
 # Model routing mapped to user's locally installed Ollama models
 # Prioritizing GPU-accelerated models (llama3 / deepseek-r1) for instant sub-second responses

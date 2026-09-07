@@ -30,7 +30,8 @@ class VisionAgent:
                 model=self.model,
                 prompt=prompt,
                 system=VISION_AGENT_SYSTEM_PROMPT,
-                images=[image_b64]
+                images=[image_b64],
+                options={"temperature": 0.1, "num_predict": 256}
             )
             return response.strip()
         except Exception as e:

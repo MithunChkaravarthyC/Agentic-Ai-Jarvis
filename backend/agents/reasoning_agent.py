@@ -25,7 +25,8 @@ Please plan the step-by-step execution strategy, check for any missing user info
         raw_output = await ollama_client.generate(
             model=self.model,
             prompt=prompt,
-            system=REASONING_AGENT_SYSTEM_PROMPT
+            system=REASONING_AGENT_SYSTEM_PROMPT,
+            options={"temperature": 0.2}
         )
 
         extracted = ollama_client.extract_deepseek_reasoning(raw_output)

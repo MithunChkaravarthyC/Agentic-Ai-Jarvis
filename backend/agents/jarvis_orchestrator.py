@@ -1,5 +1,6 @@
 import re
 import json
+import asyncio
 import logging
 from typing import Dict, Any, List, Optional, Callable
 from datetime import datetime
@@ -39,7 +40,12 @@ User message: "{text}"
 Extract any of: app_title, features, food_item, location, flight_origin, flight_destination, flight_date.
 Return ONLY valid JSON, e.g. {{"food_item": "...", "location": "..."}}."""
         try:
-            res = await ollama_client.generate(model=self.intent_model, prompt=prompt)
+            res = await ollama_client.generate(
+                model=self.intent_model,
+                prompt=prompt,
+                system=SLOT_EXTRACTOR_SYSTEM_PROMPT,
+                options={"temperature": 0.0, "num_predict": 128}
+            )
             if "{" in res and "}" in res:
                 s = res[res.find("{"):res.rfind("}")+1]
                 return json.loads(s)
@@ -61,7 +67,11 @@ Output ONLY a JSON object:
   "passengers": 1
 }}"""
         try:
-            res = await ollama_client.generate(model=self.intent_model, prompt=prompt)
+            res = await ollama_client.generate(
+                model=self.intent_model,
+                prompt=prompt,
+                options={"temperature": 0.0, "num_predict": 128}
+            )
             match = re.search(r'\{[^{}]*\}', res, re.DOTALL)
             if match:
                 data = json.loads(match.group(0))
@@ -463,7 +473,8 @@ J.A.R.V.I.S.:"""
             async for token in ollama_client.generate_stream(
                 model=self.model,
                 prompt=prompt,
-                system=JARVIS_SYSTEM_PROMPT
+                system=JARVIS_SYSTEM_PROMPT,
+                options={"temperature": 0.6, "num_predict": 120}
             ):
                 full_tokens.append(token)
                 if not tts_task:
@@ -478,7 +489,8 @@ J.A.R.V.I.S.:"""
             response = await ollama_client.generate(
                 model=self.model,
                 prompt=prompt,
-                system=JARVIS_SYSTEM_PROMPT
+                system=JARVIS_SYSTEM_PROMPT,
+                options={"temperature": 0.6, "num_predict": 120}
             )
             full_tokens = [response]
 

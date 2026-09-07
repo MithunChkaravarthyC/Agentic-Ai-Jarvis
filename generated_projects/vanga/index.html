@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vanga — Lusion 3D Interactive Web Experience</title>
+    <!-- Modern Editorial Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="lusion-theme">
+    <!-- Custom Fluid Magnetic Cursor -->
+    <div id="cursorDot" class="cursor-dot"></div>
+    <div id="cursorFollower" class="cursor-follower"></div>
+
+    <!-- Ambient Dynamic Gradients -->
+    <div class="ambient-nebula nebula-1"></div>
+    <div class="ambient-nebula nebula-2"></div>
+    <div class="ambient-nebula nebula-3"></div>
+
+    <!-- Top Navigation -->
+    <header class="lusion-nav">
+        <div class="nav-container">
+            <a href="#hero" class="brand-link">
+                <span class="brand-symbol">◈</span>
+                <span class="brand-text">VANGA</span>
+            </a>
+            <nav class="nav-menu">
+                <a href="#hero" class="nav-link active">Home</a>
+                <a href="#studio" class="nav-link">3D Studio</a>
+                <a href="#showcase" class="nav-link">Showcase</a>
+                <a href="#architecture" class="nav-link">Architecture</a>
+            </nav>
+            <div class="nav-actions">
+                <button id="audioToggleBtn" class="hud-pill-btn" title="Toggle Procedural Audio Synthesizer">
+                    <i class="fa-solid fa-volume-high"></i> <span id="audioStatusText">SOUND ON</span>
+                </button>
+                <a href="#contact" class="btn-lusion-primary">
+                    <span>CONNECT</span> <i class="fa-solid fa-arrow-right-long"></i>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section with Full Interactive 3D WebGL Canvas -->
+    <section id="hero" class="hero-section">
+        <div class="hero-background-canvas" id="canvasContainer"></div>
+
+        <div class="hero-content">
+            <div class="hero-badge">
+                <span class="pulse-dot"></span>
+                <span>INTERACTIVE 3D EXPERIENCE // LUSION-GRADE 3D</span>
+            </div>
+            
+            <h1 class="hero-headline">
+                Crafting <span class="gradient-text">Silky 3D</span><br>Realities & Beyond
+            </h1>
+            
+            <p class="hero-subline">Mastercrafted with computational Three.js WebGL graphics, silky lerp kinematics, and luxury cybernetic design for Vanga.</p>
+            
+            <div class="hero-cta-bar">
+                <a href="#studio" class="btn-lusion-glow">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Customize in 3D Studio
+                </a>
+                <button id="interact3dBtn" class="btn-lusion-glass">
+                    <i class="fa-solid fa-hand"></i> Drag & Explore Mesh
+                </button>
+            </div>
+
+            <div class="hero-telemetry-hud">
+                <div class="telemetry-node">
+                    <span class="node-label">RENDER PIPELINE</span>
+                    <span class="node-val">Three.js WebGL 60FPS</span>
+                </div>
+                <div class="telemetry-node">
+                    <span class="node-label">GEOMETRY KINEMATICS</span>
+                    <span class="node-val" id="activeGeoLabel">Parametric Torus Knot</span>
+                </div>
+                <div class="telemetry-node">
+                    <span class="node-label">PARTICLE SWARM</span>
+                    <span class="node-val" id="particleCountLabel">1,800 Active</span>
+                </div>
+                <div class="telemetry-node">
+                    <span class="node-label">INERTIA DAMPING</span>
+                    <span class="node-val">LERP (Factor: 0.05)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Floating On-Canvas 3D Studio HUD Overlay -->
+        <div class="canvas-floating-controls">
+            <div class="control-badge"><i class="fa-solid fa-cube"></i> REAL-TIME 3D HUD</div>
+            <div class="hud-buttons-grid">
+                <button id="btnToggleRotate" class="hud-icon-btn active" title="Toggle Auto-Rotation">
+                    <i class="fa-solid fa-rotate"></i>
+                    <span>Rotate</span>
+                </button>
+                <button id="btnToggleWireframe" class="hud-icon-btn" title="Toggle Physical / Wireframe">
+                    <i class="fa-solid fa-border-none"></i>
+                    <span>Wireframe</span>
+                </button>
+                <button id="btnCycleTheme" class="hud-icon-btn" title="Cycle Color Shaders">
+                    <i class="fa-solid fa-palette"></i>
+                    <span>Theme</span>
+                </button>
+                <button id="btnMorphGeometry" class="hud-icon-btn" title="Morph 3D Geometry">
+                    <i class="fa-solid fa-shapes"></i>
+                    <span>Morph</span>
+                </button>
+                <button id="btnResetCamera" class="hud-icon-btn" title="Reset Viewport">
+                    <i class="fa-solid fa-arrows-to-dot"></i>
+                    <span>Reset</span>
+                </button>
+            </div>
+            <div class="canvas-drag-hint">
+                <i class="fa-solid fa-computer-mouse"></i> Move mouse for smooth parallax • Drag canvas to orbit
+            </div>
+        </div>
+    </section>
+
+    <!-- Interactive 3D Studio Section -->
+    <section id="studio" class="studio-section">
+        <div class="section-container">
+            <div class="section-header">
+                <div class="sub-badge"><i class="fa-solid fa-sliders"></i> PROCEDURAL WORKBENCH</div>
+                <h2 class="section-title">Interactive 3D Studio Controls</h2>
+                <p class="section-lead">Adjust the mathematical rendering parameters, light shaders, and physics dynamics in real-time.</p>
+            </div>
+
+            <div class="studio-grid">
+                <!-- Control Card 1: Geometry Selector -->
+                <div class="studio-card">
+                    <div class="card-icon"><i class="fa-solid fa-shapes"></i></div>
+                    <h3>Geometry Synthesis</h3>
+                    <p>Morph the active WebGL mesh dynamically using parametric formulas.</p>
+                    <div class="option-pill-group" id="geoPillGroup">
+                        <button class="pill-btn active" data-geo="torusknot">Torus Knot</button>
+                        <button class="pill-btn" data-geo="icosahedron">Organic Icosahedron</button>
+                        <button class="pill-btn" data-geo="quantum">Quantum Core</button>
+                        <button class="pill-btn" data-geo="ribbon">Crystalline Ring</button>
+                    </div>
+                </div>
+
+                <!-- Control Card 2: Chromatic Shader Palettes -->
+                <div class="studio-card">
+                    <div class="card-icon"><i class="fa-solid fa-swatchbook"></i></div>
+                    <h3>Lighting & Shaders</h3>
+                    <p>Select cinematic multi-point lighting themes and physical material properties.</p>
+                    <div class="color-palette-group" id="themePicker">
+                        <button class="color-btn active" data-theme="cyber-cyan" style="background: linear-gradient(135deg, #00f0ff, #0072ff);" title="Cyber Cyan"></button>
+                        <button class="color-btn" data-theme="neon-magenta" style="background: linear-gradient(135deg, #ff007f, #7928ca);" title="Neon Magenta"></button>
+                        <button class="color-btn" data-theme="emerald-matrix" style="background: linear-gradient(135deg, #00f5a0, #00d9f5);" title="Emerald Matrix"></button>
+                        <button class="color-btn" data-theme="solar-amber" style="background: linear-gradient(135deg, #ffd000, #ff6b00);" title="Solar Amber"></button>
+                        <button class="color-btn" data-theme="obsidian-mono" style="background: linear-gradient(135deg, #ffffff, #666666);" title="Obsidian Mono"></button>
+                    </div>
+                </div>
+
+                <!-- Control Card 3: Kinematics & Physics -->
+                <div class="studio-card">
+                    <div class="card-icon"><i class="fa-solid fa-atom"></i></div>
+                    <h3>Particle Swarm & Speed</h3>
+                    <p>Fine-tune cosmic particle swarm density and auto-rotational inertia.</p>
+                    <div class="slider-control">
+                        <div class="slider-header">
+                            <span>Particle Count</span>
+                            <span id="sliderParticleVal">1800</span>
+                        </div>
+                        <input type="range" id="particleRange" min="400" max="3000" step="200" value="1800" class="lusion-range">
+                    </div>
+                    <div class="slider-control">
+                        <div class="slider-header">
+                            <span>Rotation Velocity</span>
+                            <span id="sliderSpeedVal">1.0x</span>
+                        </div>
+                        <input type="range" id="speedRange" min="0" max="30" step="2" value="10" class="lusion-range">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Dynamic Showcase Section -->
+    <section id="showcase" class="showcase-section">
+        <div class="section-container">
+            <div class="section-header">
+                <div class="sub-badge"><i class="fa-solid fa-layer-group"></i> CURATED WORKS</div>
+                <h2 class="section-title">Creative Innovations</h2>
+                <p class="section-lead">A collection of spatial interactions, procedural simulations, and fluid architectures.</p>
+            </div>
+
+            <!-- Filter Tabs -->
+            <div class="showcase-tabs">
+                <button class="filter-tab active" data-filter="all">All Specialties</button>
+                <button class="filter-tab" data-filter="spatial">Spatial 3D</button>
+                <button class="filter-tab" data-filter="physics">Particle Physics</button>
+                <button class="filter-tab" data-filter="creative">Creative Tech</button>
+            </div>
+
+            <!-- Showcase Grid -->
+            <div class="showcase-grid" id="showcaseGrid">
+                <!-- Dynamically populated by app.js -->
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture & Engineering Specs -->
+    <section id="architecture" class="arch-section">
+        <div class="section-container">
+            <div class="arch-card">
+                <div class="arch-header">
+                    <div class="sub-badge"><i class="fa-solid fa-microchip"></i> UNDER THE HOOD</div>
+                    <h2>Lusion-Grade Technical Blueprint</h2>
+                </div>
+                <div class="arch-columns">
+                    <div class="arch-col">
+                        <h4><i class="fa-solid fa-bezier-curve"></i> Silky Lerp Damping</h4>
+                        <p>Mouse coordinates are normalized and interpolated with a lerp coefficient of 0.05, completely eliminating jitter and producing liquid, weighted momentum.</p>
+                    </div>
+                    <div class="arch-col">
+                        <h4><i class="fa-solid fa-gem"></i> MeshPhysicalMaterial</h4>
+                        <p>Refraction, metallic sheen, clearcoat, and roughness are computed per-pixel using Three.js PBR lighting equations for photorealistic glass caustics.</p>
+                    </div>
+                    <div class="arch-col">
+                        <h4><i class="fa-solid fa-wave-square"></i> Web Audio Synthesizer</h4>
+                        <p>Zero external MP3 dependencies. Subtle acoustic feedback and holographic frequencies are dynamically synthesized using the browser's native Web Audio API.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact & Collaboration Modal Trigger -->
+    <section id="contact" class="contact-section">
+        <div class="section-container">
+            <div class="contact-box">
+                <div class="contact-glow"></div>
+                <div class="sub-badge"><i class="fa-solid fa-paper-plane"></i> INITIATE DIALOGUE</div>
+                <h2>Ready to Build Something Mesmerizing?</h2>
+                <p>Collaborate with our multi-agent protocol to construct bespoke 3D applications, spatial websites, and interactive digital artifacts.</p>
+                <form id="contactForm" class="contact-form">
+                    <div class="form-row">
+                        <input type="text" id="contactName" placeholder="Your Name" required class="lusion-input">
+                        <input type="email" id="contactEmail" placeholder="Your Email Address" required class="lusion-input">
+                    </div>
+                    <div class="form-row">
+                        <select id="projectScope" class="lusion-input">
+                            <option value="3D Website">Custom 3D Website</option>
+                            <option value="AI Dashboard">Agentic AI Dashboard</option>
+                            <option value="WebGL Studio">Interactive WebGL Studio</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-lusion-glow full-width">
+                        <span>TRANSMIT PROPOSAL</span> <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="lusion-footer">
+        <div class="footer-container">
+            <div class="footer-left">
+                <span class="brand-symbol">◈</span>
+                <span>VANGA // ARCHITECTED BY J.A.R.V.I.S. MULTI-AGENT PROTOCOL</span>
+            </div>
+            <div class="footer-right">
+                <span>WebGL 2.0 • Three.js r128 • 60 FPS Guaranteed</span>
+            </div>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>

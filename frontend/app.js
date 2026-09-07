@@ -1,15 +1,24 @@
 // J.A.R.V.I.S. Multi-Agent HUD Client Engine
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.3';
+
+// Enforce offline model caching into CacheStorage
+env.allowLocalModels = false;
+env.useBrowserCache = true;
 
 class JarvisClient {
     constructor() {
         this.ws = null;
-        this.speechRecognition = null;
+        this.asrPipeline = null;
+        this.isModelLoading = false;
+        this.mediaRecorder = null;
+        this.audioChunks = [];
+        this.mediaStream = null;
         this.isListening = false;
         this.voiceEnabled = true;
         this.currentAudio = null;
 
         this.initDOM();
-        this.initSpeechRecognition();
+        this.initWhisperPipeline();
         this.initWebSocket();
         this.bindEvents();
     }
@@ -233,7 +242,7 @@ class JarvisClient {
         const payload = bookingData.confirmation_payload || bookingData.booking?.confirmation_payload || {};
         const details = payload.details || bookingData.details || {};
         const actionTitle = bookingData.action || payload.action_type || "Booking / Order";
-        const totalAmount = details.total || bookingData.summary?.match(/₹[\d,.]+/)?.[0] || "₹399.00";
+        const totalAmount = details.total || bookingData.summary?.match(/\u20B9[\d,.]+/u)?.[0] || "\u20B9399.00";
         const screenshotUrl = bookingData.screenshot_url || payload.details?.screenshot || details.screenshot;
 
         let detailsHtml = `<div style="margin-bottom: 12px; color:#00f0ff; font-weight: bold; letter-spacing: 1px;">⚡ ${actionTitle.toUpperCase()}</div>`;
@@ -381,57 +390,166 @@ class JarvisClient {
         this.reactorStatus.textContent = text;
     }
 
-    // --- Speech Recognition (Voice In) ---
-    initSpeechRecognition() {
-        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRec) {
-            console.warn("Speech Recognition API not supported in this browser.");
-            return;
+    // --- High-Performance Offline Speech-to-Text (Whisper Large-V3 Turbo via WebGPU/WASM) ---
+    async initWhisperPipeline() {
+        if (this.asrPipeline || this.isModelLoading) return;
+        this.isModelLoading = true;
+        const modelId = 'onnx-community/whisper-large-v3-turbo';
+        console.log(`[ASR] Initializing Whisper Large-V3 Turbo pipeline (${modelId})...`);
+
+        const progressCallback = (progress) => {
+            if (progress.status === 'progress') {
+                const pct = Math.round((progress.loaded / (progress.total || 1)) * 100) || Math.round(progress.progress || 0);
+                const file = progress.file ? progress.file.split('/').pop() : 'model';
+                this.setReactorState("ACTIVE", `CACHING ${file.slice(0, 10).toUpperCase()} (${pct}%)`);
+            } else if (progress.status === 'done') {
+                this.setReactorState("ACTIVE", "COMPILING WEBGPU KERNELS...");
+            } else if (progress.status === 'ready') {
+                this.setReactorState("STANDBY", "WHISPER READY");
+            }
+        };
+
+        try {
+            // Priority 1: Hardware-Accelerated WebGPU Execution
+            if (navigator.gpu) {
+                console.log("[ASR] WebGPU detected in navigator. Initializing hardware-accelerated pipeline...");
+                this.asrPipeline = await pipeline('automatic-speech-recognition', modelId, {
+                    device: 'webgpu',
+                    dtype: {
+                        encoder_model: 'fp16',
+                        decoder_model_merged: 'q4',
+                    },
+                    progress_callback: progressCallback
+                });
+                console.log("[ASR] WebGPU Whisper Large-V3 Turbo pipeline compiled successfully.");
+            } else {
+                throw new Error("WebGPU not available in browser runtime");
+            }
+        } catch (webGpuErr) {
+            console.warn("[ASR] WebGPU acceleration unavailable or failed, falling back to WebAssembly (WASM):", webGpuErr);
+            try {
+                this.asrPipeline = await pipeline('automatic-speech-recognition', modelId, {
+                    device: 'wasm',
+                    dtype: 'q4',
+                    progress_callback: progressCallback
+                });
+                console.log("[ASR] WASM Whisper Large-V3 Turbo pipeline initialized successfully.");
+            } catch (wasmErr) {
+                console.error("[ASR] Failed to initialize Whisper Large-V3 Turbo pipeline:", wasmErr);
+                this.setReactorState("ALERT", "ASR INIT ERROR");
+            }
+        } finally {
+            this.isModelLoading = false;
+            this.setReactorState("STANDBY", "STANDBY");
         }
+    }
 
-        this.speechRecognition = new SpeechRec();
-        this.speechRecognition.continuous = false;
-        this.speechRecognition.interimResults = false;
-        this.speechRecognition.lang = "en-US";
+    async toggleListening() {
+        if (this.isListening) {
+            this.stopRecording();
+        } else {
+            await this.startRecording();
+        }
+    }
 
-        this.speechRecognition.onstart = () => {
+    async startRecording() {
+        try {
+            if (!this.asrPipeline && !this.isModelLoading) {
+                await this.initWhisperPipeline();
+            }
+            if (this.isModelLoading) {
+                this.appendMessage("jarvis", "Whisper Large-V3 Turbo is currently initializing in memory, Sir. Please allow a moment.");
+                return;
+            }
+
+            this.audioChunks = [];
+            this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            this.mediaRecorder = new MediaRecorder(this.mediaStream);
+
+            this.mediaRecorder.ondataavailable = (event) => {
+                if (event.data && event.data.size > 0) {
+                    this.audioChunks.push(event.data);
+                }
+            };
+
+            this.mediaRecorder.onstop = async () => {
+                this.setReactorState("ACTIVE", "TRANSCRIBING (WHISPER TURBO)...");
+                const audioBlob = new Blob(this.audioChunks, { type: this.mediaRecorder.mimeType || 'audio/webm' });
+                
+                // Release audio hardware tracks
+                if (this.mediaStream) {
+                    this.mediaStream.getTracks().forEach(track => track.stop());
+                    this.mediaStream = null;
+                }
+
+                try {
+                    const float32Array = await this.convertBlobTo16kHzFloat32(audioBlob);
+                    if (!float32Array || float32Array.length < 1600) { // < 100ms
+                        console.warn("[ASR] Audio too short for transcription.");
+                        this.setReactorState("STANDBY", "STANDBY");
+                        return;
+                    }
+
+                    const startTime = performance.now();
+                    const output = await this.asrPipeline(float32Array, {
+                        language: 'en',
+                        task: 'transcribe',
+                    });
+                    const inferenceTime = Math.round(performance.now() - startTime);
+                    const transcript = (typeof output === 'string' ? output : output?.text || "").trim();
+                    console.log(`[ASR] Transcribed in ${inferenceTime}ms: "${transcript}"`);
+
+                    if (transcript) {
+                        this.chatInput.value = transcript;
+                        this.sendMessage();
+                    }
+                } catch (err) {
+                    console.error("[ASR] Transcription evaluation error:", err);
+                } finally {
+                    this.setReactorState("STANDBY", "STANDBY");
+                }
+            };
+
+            this.mediaRecorder.start();
             this.isListening = true;
             this.voiceBtn.classList.add("listening");
-            this.setReactorState("ACTIVE", "LISTENING...");
-        };
-
-        this.speechRecognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
-            this.chatInput.value = transcript;
-            this.sendMessage();
-        };
-
-        this.speechRecognition.onerror = (event) => {
-            console.error("Speech Recognition Error:", event.error);
-            this.stopListening();
-        };
-
-        this.speechRecognition.onend = () => {
-            this.stopListening();
-        };
-    }
-
-    toggleListening() {
-        if (!this.speechRecognition) {
-            alert("Voice input requires Google Chrome or Chromium with Web Speech API support.");
-            return;
-        }
-        if (this.isListening) {
-            this.speechRecognition.stop();
-        } else {
-            this.speechRecognition.start();
+            this.setReactorState("ACTIVE", "LISTENING (RECORDING)...");
+        } catch (err) {
+            console.error("[ASR] Microphone access error:", err);
+            alert("Microphone permission denied or audio input unavailable.");
+            this.isListening = false;
+            this.voiceBtn.classList.remove("listening");
+            this.setReactorState("STANDBY", "STANDBY");
         }
     }
 
-    stopListening() {
+    stopRecording() {
+        if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
+            this.mediaRecorder.stop();
+        }
         this.isListening = false;
         this.voiceBtn.classList.remove("listening");
-        this.setReactorState("STANDBY", "STANDBY");
+    }
+
+    async convertBlobTo16kHzFloat32(blob) {
+        const arrayBuffer = await blob.arrayBuffer();
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const decodedAudio = await audioCtx.decodeAudioData(arrayBuffer);
+
+        // Resample and downmix to 16,000 Hz single-channel Float32Array via OfflineAudioContext
+        const targetSampleRate = 16000;
+        const offlineCtx = new OfflineAudioContext(
+            1,
+            Math.ceil(decodedAudio.duration * targetSampleRate),
+            targetSampleRate
+        );
+        const source = offlineCtx.createBufferSource();
+        source.buffer = decodedAudio;
+        source.connect(offlineCtx.destination);
+        source.start(0);
+        const rendered = await offlineCtx.startRendering();
+        await audioCtx.close();
+        return rendered.getChannelData(0);
     }
 
     // --- Dedicated Kokoro-82M High-Fidelity Audio Playback ---

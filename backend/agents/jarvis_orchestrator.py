@@ -15,6 +15,7 @@ from backend.tools.app_launcher import app_launcher
 from backend.tools.time_tool import time_tool
 from backend.tools.weather_tool import weather_tool
 from backend.tools.web_search_tool import web_search_tool
+from backend.tools.gesture_detector import gesture_detector
 from backend.prompts import (
     JARVIS_ORCHESTRATOR_SYSTEM_PROMPT as JARVIS_SYSTEM_PROMPT,
     SLOT_EXTRACTOR_SYSTEM_PROMPT
@@ -156,7 +157,41 @@ Output ONLY a JSON object:
     def _classify_intent(self, text: str) -> str:
         """Rule & keyword based intent classifier with fallback."""
         lower = text.lower()
-        
+
+        # 1. Screen Perception & Computer Vision (highest priority)
+        if re.search(r'\b(look\s+at\s+(?:my\s+)?screen|what(?:\'s|\s+is)\s+on\s+(?:my\s+)?screen|check\s+(?:my\s+)?screen|inspect\s+(?:my\s+)?screen|see\s+(?:my\s+)?screen)\b', lower) or \
+           re.search(r'\b(what\s+error\s+is\s+shown|what\s+does\s+this\s+error\s+mean|what(?:\'s|\s+is)\s+this\s+error|explain\s+this\s+error|read\s+this\s+error|terminal\s+error|error\s+on\s+(?:my\s+)?screen)\b', lower) or \
+           re.search(r'\b(summarize\s+this\s+document|what\s+website\s+is\s+open|what\s+window\s+is\s+this|what\s+is\s+open\s+on\s+(?:my\s+)?screen|read\s+this\s+for\s+me|what\s+am\s+i\s+looking\s+at|tell\s+me\s+what(?:\'s|\s+is)\s+open)\b', lower) or \
+           (any(w in lower for w in ["screen", "display", "monitor"]) and any(w in lower for w in ["look", "see", "read", "inspect", "view", "analyze", "summarize", "check", "what is on", "tell me what is"])):
+            return "screen_perception"
+
+        # 1.1 Physical Webcam Perception (Jarvis Eye — physical objects, holding, hand, room)
+        if re.search(r'\b(?:what(?:\'s|\s+is)|\s*tell\s+me\s+what(?:\'s|\s+is)?|\s*can\s+you\s+see)\s+(?:what\s+)?(?:is\s+)?(?:in\s+(?:my\s+)?hands?|held\s+in\s+(?:my\s+)?hands?)\b', lower) or \
+           re.search(r'\b(?:what\s+do\s+i\s+have\s+in\s+(?:my\s+)?hands?|what\s+am\s+i\s+holding(?:\s+in\s+(?:my\s+)?hands?)?)\b', lower) or \
+           re.search(r'\b(?:look\s+at|check|inspect|see)\s+what\s+i(?:\'m|\s+am)\s+holding\b', lower) or \
+           re.search(r'\b(?:look\s+at|check|inspect|see)\s+(?:my\s+)?hands?\b', lower) or \
+           re.search(r'\b(?:in\s+my\s+hands?|what(?:\'s|\s+is)\s+in\s+my\s+hands?|holding\s+in\s+my\s+hands?)\b', lower) or \
+           re.search(r'\b(?:inspect|identify|recognize|examine|describe)\s+(?:this\s+)?(?:object|item|thing|gadget|product|device|photo)\b', lower) or \
+           re.search(r'\bwhat\s+(?:is\s+this\s+object|object\s+is\s+this|item\s+is\s+this|thing\s+is\s+this|gadget\s+is\s+this)\b', lower) or \
+           re.search(r'\bwhat(?:\'s|\s+is)\s+this\s+(?:object|item|thing|gadget|device)\b', lower) or \
+           re.search(r'\b(?:what\s+am\s+i\s+showing|what\s+am\s+i\s+pointing(?:\s+at)?|can\s+you\s+see\s+what\s+i(?:\'m|\s+am)\s+showing)\b', lower) or \
+           re.search(r'\b(?:read|summarize|ocr)\s+(?:this\s+)?(?:document|paper|card|note|book|label|page|text)\s+(?:in\s+my\s+hand|in\s+front\s+of|to\s+the\s+camera)\b', lower) or \
+           re.search(r'\b(who\s+is\s+in\s+front\s+of\s+the\s+camera|who\s+am\s+i|who\s+do\s+you\s+see|describe\s+the\s+person|describe\s+me)\b', lower) or \
+           re.search(r'\b(look\s+through\s+(?:your\s+)?webcam|look\s+through\s+(?:your\s+)?camera|open\s+your\s+eyes|what\s+do\s+you\s+see\s+in\s+(?:the\s+)?room|what(?:\'s|\s+is)\s+in\s+front\s+of\s+you)\b', lower) or \
+           (any(w in lower for w in ["camera", "webcam", "lens"]) and any(w in lower for w in ["look", "see", "read", "inspect", "view", "analyze", "what is in", "what do you see"])):
+            return "webcam_perception"
+
+        # 2. Gesture Control Commands (MediaPipe Hand Tracking)
+        if re.search(r'\b(enable|activate|turn on|start)\s+(?:the\s+)?(?:gesture\s+control|hand\s+tracking|gesture\s+tracking|camera\s+gestures?|gestures?)\b', lower):
+            return "enable_gestures"
+        if re.search(r'\b(disable|deactivate|turn off|stop)\s+(?:the\s+)?(?:gesture\s+control|hand\s+tracking|gesture\s+tracking|camera\s+gestures?|gestures?)\b', lower):
+            return "disable_gestures"
+
+        # 3. Greetings, wake checks, presence checks & persona inquiries
+        if re.search(r'^(hi|hello|hey|greetings|good (morning|afternoon|evening|day)|yo|sup|jarvis|are you there|system status|who are you|introduce yourself)\b', lower.strip()):
+            if not any(k in lower for k in ["build", "create", "make", "order", "swiggy", "flight", "open", "launch", "weather", "temperature", "time", "clock", "research", "analyze", "screen", "gesture", "tracking", "hand"]):
+                return "greeting"
+
         # Payment confirmation
         if any(w in lower for w in ["confirm payment", "yes confirm", "proceed with payment", "authorize payment", "place order", "book now", "approve booking"]) and booking_agent.pending_confirmation:
             return "confirm_payment"
@@ -208,7 +243,138 @@ Output ONLY a JSON object:
         if emit_event:
             await emit_event("intent_detected", {"intent": intent, "message": user_message})
 
-        # --- 0. LOCAL APP LAUNCHING ---
+        # --- 0. GREETINGS & INTRODUCTIONS ---
+        if intent == "greeting":
+            hour = datetime.now().hour
+            time_greeting = "Good morning" if hour < 12 else ("Good afternoon" if hour < 17 else "Good evening")
+            
+            lower_msg = user_message.lower().strip()
+            if any(w in lower_msg for w in ["who are you", "introduce yourself", "what can you do"]):
+                reply = f"{time_greeting}, Sir. I am Jarvis, your autonomous multi-agent artificial intelligence system. I coordinate specialized sub-agents to engineer 3D web applications, automate food delivery on Swiggy, book flights, inspect visual telemetry, launch desktop applications, and provide real-time global intelligence. All systems are primed and standing by."
+            elif any(w in lower_msg for w in ["how are you", "how are you doing", "status"]):
+                reply = f"All systems are operating at peak efficiency, Sir. Neural pipelines and multi-agent protocols are fully synchronized. How may I assist you today?"
+            elif any(w in lower_msg for w in ["are you there", "you there"]):
+                reply = f"Always at your service, Sir. Sub-agents are standing by. What are your orders?"
+            else:
+                reply = f"{time_greeting}, Sir. J.A.R.V.I.S. is online and all sub-agents are standing by. How may I be of assistance today?"
+
+            self.conversation_history.append({"role": "assistant", "content": reply})
+            tts_res = await tts_agent.synthesize(reply)
+            return {
+                "type": "greeting",
+                "reply": reply,
+                "audio_url": tts_res.get("audio_url")
+            }
+
+        # --- 0.1 SCREEN PERCEPTION & COMPUTER VISION ---
+        if intent == "screen_perception":
+            if emit_event:
+                await emit_event("agent_status", {"agent": "VisionAgent", "status": "Capturing screen & inspecting with MiniCPM-V..."})
+
+            monitor = "primary"
+            if "left" in user_message.lower():
+                monitor = "left"
+            elif "right" in user_message.lower():
+                monitor = "right"
+
+            vision_res = await vision_agent.perceive_screen(question=user_message, monitor=monitor)
+            reply = vision_res.get("answer", "I have inspected your screen, Sir.")
+
+            self.conversation_history.append({"role": "assistant", "content": reply})
+            tts_res = await tts_agent.synthesize(reply)
+
+            return {
+                "type": "screen_perception",
+                "reply": reply,
+                "screenshot_url": vision_res.get("screenshot_url"),
+                "audio_url": tts_res.get("audio_url"),
+                "telemetry": vision_res.get("telemetry", {}),
+                "details": {
+                    "screenshot_url": vision_res.get("screenshot_url"),
+                    "action_type": "screen_perception",
+                    "telemetry": vision_res.get("telemetry", {})
+                }
+            }
+
+        # --- 0.11 WEBCAM PHYSICAL PERCEPTION (JARVIS EYE) ---
+        if intent == "webcam_perception":
+            if emit_event:
+                await emit_event("agent_status", {"agent": "VisionAgent", "status": "Engaging optical lens & inspecting with MiniCPM-V..."})
+
+            vision_res = await vision_agent.perceive_webcam(question=user_message)
+            reply = vision_res.get("answer", "I have inspected the camera view, Sir.")
+
+            self.conversation_history.append({"role": "assistant", "content": reply})
+            tts_res = await tts_agent.synthesize(reply)
+
+            return {
+                "type": "webcam_perception",
+                "reply": reply,
+                "screenshot_url": vision_res.get("screenshot_url"),
+                "audio_url": tts_res.get("audio_url"),
+                "telemetry": vision_res.get("telemetry", {}),
+                "details": {
+                    "screenshot_url": vision_res.get("screenshot_url"),
+                    "action_type": "webcam_perception",
+                    "telemetry": vision_res.get("telemetry", {})
+                }
+            }
+
+        # --- 0.15 GESTURE CONTROLS (MediaPipe Hands on CPU) ---
+        if intent == "enable_gestures":
+            res = gesture_detector.start()
+            reply = "Gesture controls activated, Sir. MediaPipe hand tracking is running on CPU. Standing by for hand gestures."
+            self.conversation_history.append({"role": "assistant", "content": reply})
+            tts_res = await tts_agent.synthesize(reply)
+            return {
+                "type": "gesture_status",
+                "reply": reply,
+                "gesture_tracking": True,
+                "details": res,
+                "audio_url": tts_res.get("audio_url")
+            }
+
+        if intent == "disable_gestures":
+            res = gesture_detector.stop()
+            reply = "Gesture controls deactivated, Sir. The webcam has been released."
+            self.conversation_history.append({"role": "assistant", "content": reply})
+            tts_res = await tts_agent.synthesize(reply)
+            return {
+                "type": "gesture_status",
+                "reply": reply,
+                "gesture_tracking": False,
+                "details": res,
+                "audio_url": tts_res.get("audio_url")
+            }
+
+        # --- 0.16 SECURITY GATE CONFIRMATION / CANCELLATION ---
+        if intent == "confirm_payment":
+            res = booking_agent.confirm_payment()
+            reply = res.get("message", "Payment confirmed, Sir.")
+            self.conversation_history.append({"role": "assistant", "content": reply})
+            tts_res = await tts_agent.synthesize(reply)
+            return {
+                "type": "payment_result",
+                "reply": reply,
+                "message": reply,
+                "details": res,
+                "audio_url": tts_res.get("audio_url")
+            }
+
+        if intent == "cancel_payment":
+            res = booking_agent.cancel_payment()
+            reply = res.get("message", "Booking aborted, Sir.")
+            self.conversation_history.append({"role": "assistant", "content": reply})
+            tts_res = await tts_agent.synthesize(reply)
+            return {
+                "type": "payment_result",
+                "reply": reply,
+                "message": reply,
+                "details": res,
+                "audio_url": tts_res.get("audio_url")
+            }
+
+        # --- 0.2 LOCAL APP LAUNCHING ---
         if intent == "open_app":
             # Pass FULL message — app_launcher does its own cleaning internally
             res = app_launcher.open_application(user_message)
@@ -364,11 +530,13 @@ Output ONLY a JSON object:
 
             reply = f"I have constructed the **{build_res['project_name']}** application, Sir! The application is running live on localhost and embedded in your Web Apps tab. You can also view it directly at [Open Localhost App]({build_res['preview_url']})."
             self.conversation_history.append({"role": "assistant", "content": reply})
+            tts_res = await tts_agent.synthesize(f"I have constructed the {build_res['project_name']} application, Sir. It is running live on your dashboard.")
             return {
                 "type": "web_app_ready",
                 "reply": reply,
                 "project": build_res,
-                "thought": plan_res.get("thought")
+                "thought": plan_res.get("thought"),
+                "audio_url": tts_res.get("audio_url")
             }
 
         # --- 2.5 RESEARCH & DEEP ANALYSIS ---
@@ -384,10 +552,12 @@ Output ONLY a JSON object:
 
             reply = f"### 📊 Intelligence Briefing // DeepSeek-R1\n\n{plan_res.get('plan', '')}"
             self.conversation_history.append({"role": "assistant", "content": reply})
+            tts_res = await tts_agent.synthesize("Research and reasoning analysis complete, Sir. I have assembled the intelligence briefing on your display.")
             return {
                 "type": "research_complete",
                 "reply": reply,
-                "thought": plan_res.get("thought")
+                "thought": plan_res.get("thought"),
+                "audio_url": tts_res.get("audio_url")
             }
 
         # --- 3. SWIGGY FOOD ORDERING ---
@@ -424,10 +594,12 @@ Output ONLY a JSON object:
             total = booking_res.get('confirmation_payload', {}).get('details', {}).get('total', '₹399.00')
             reply = f"Sir, I have opened Swiggy in your browser and assembled your order for **{food_item}** in **{location}**. The order total is **{total}**. Please confirm payment authorization in the Security Gate modal to proceed."
             self.conversation_history.append({"role": "assistant", "content": reply})
+            tts_res = await tts_agent.synthesize(reply)
             return {
                 "type": "swiggy_awaiting_approval",
                 "reply": reply,
-                "booking": booking_res
+                "booking": booking_res,
+                "audio_url": tts_res.get("audio_url")
             }
 
         # --- 4. FLIGHT TICKET BOOKING ---
@@ -485,10 +657,12 @@ Output ONLY a JSON object:
                 f"{advisory_note}"
             )
             self.conversation_history.append({"role": "assistant", "content": reply})
+            tts_res = await tts_agent.synthesize(reply)
             return {
                 "type": "flight_awaiting_approval",
                 "reply": reply,
-                "booking": booking_res
+                "booking": booking_res,
+                "audio_url": tts_res.get("audio_url")
             }
 
         # --- 5. GENERAL JARVIS CONVERSATION & REAL-TIME WEB INTELLIGENCE ---
@@ -503,13 +677,21 @@ Output ONLY a JSON object:
         if emit_event:
             await emit_event("agent_status", {"agent": "JARVIS", "status": "Formulating response..."})
 
+        # Format previous dialogue cleanly without repeating the current user turn
+        recent_history = self.conversation_history[:-1]
+        history_lines = []
+        for msg in recent_history[-6:]:
+            speaker = "Sir" if msg.get("role") == "user" else "Jarvis"
+            history_lines.append(f"{speaker}: {msg.get('content', '')}")
+        history_block = "\n".join(history_lines) if history_lines else "None"
+
         now_str = datetime.now().strftime('%A, %B %d, %Y at %I:%M %p')
         prompt = f"""Current System Date & Time: {now_str}
 {live_web_block}
-Conversation History:
-{json.dumps(self.conversation_history[-6:], indent=2)}
+Recent Conversation Dialogue:
+{history_block}
 
-User: {user_message}
+Sir: {user_message}
 Jarvis:"""
 
         full_tokens = []
@@ -528,7 +710,7 @@ Jarvis:"""
                     partial = "".join(full_tokens)
                     if any(end in partial for end in [". ", "! ", "? ", ".\n", "!\n", "?\n"]):
                         match = re.search(r'^(.*?[.!?])(?:\s|\n|$)', partial, re.DOTALL)
-                        if match and len(match.group(1).strip()) > 8:
+                        if match and len(match.group(1).strip()) > 10:
                             first_sentence = match.group(1).strip()
                             # Normalize dotted acronym to fluent word
                             first_sentence = re.sub(r'\bJ\.?A\.?R\.?V\.?I\.?S\.?\b', 'Jarvis', first_sentence)
@@ -549,12 +731,22 @@ Jarvis:"""
         # Normalize dotted J.A.R.V.I.S. to fluent word "Jarvis"
         clean_response = re.sub(r'\bJ\.?A\.?R\.?V\.?I\.?S\.?\b', 'Jarvis', clean_response)
 
-        # If user didn't explicitly greet, strip unprompted opener greetings like "Good evening, Sir."
+        # If user explicitly greeted, preserve greetings; if not, trim redundant opener greetings
         is_user_greeting = bool(re.search(r'\b(hello|hi|hey|good (morning|afternoon|evening|day)|greetings)\b', user_message, re.IGNORECASE))
         if not is_user_greeting:
-            clean_response = re.sub(r'^(Good (morning|afternoon|evening|day)[,!]?\s*(Sir|Boss)?[.!]?\s*)', '', clean_response, flags=re.IGNORECASE).strip()
-            if clean_response:
-                clean_response = clean_response[0].upper() + clean_response[1:]
+            trimmed = re.sub(r'^(Good (morning|afternoon|evening|day)[,!]?\s*(Sir|Boss)?[.!]?\s*)', '', clean_response, flags=re.IGNORECASE).strip()
+            if len(trimmed) > 4:
+                clean_response = trimmed[0].upper() + trimmed[1:]
+
+        # Robust guardrail against degenerate 1-word responses like "Sir." or empty strings
+        clean_lower = clean_response.strip().lower().rstrip(".,!?")
+        if clean_lower in ["sir", "yes sir", "yes, sir", "boss", ""] or len(clean_response.strip()) < 5:
+            hour = datetime.now().hour
+            tod = "morning" if hour < 12 else ("afternoon" if hour < 17 else "evening")
+            if is_user_greeting:
+                clean_response = f"Good {tod}, Sir. All systems are operational. How may I be of assistance today?"
+            else:
+                clean_response = f"Certainly, Sir. I am standing by to assist with your request."
 
         self.conversation_history.append({"role": "assistant", "content": clean_response})
 

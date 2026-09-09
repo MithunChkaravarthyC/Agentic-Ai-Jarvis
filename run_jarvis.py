@@ -18,7 +18,7 @@ def check_and_install_dependencies():
     print("   J.A.R.V.I.S. MULTI-AGENT PROTOCOL INITIALIZATION    ")
     print("=======================================================")
     
-    packages = ["fastapi", "uvicorn", "playwright", "httpx", "pydantic", "edge_tts"]
+    packages = ["fastapi", "uvicorn", "playwright", "httpx", "pydantic", "edge_tts", "mss"]
     missing = []
     for pkg in packages:
         try:
@@ -38,20 +38,6 @@ def check_and_install_dependencies():
 
 def free_port(port=8000):
     """Ensure port 8000 is clean and not locked by an old zombie process."""
-    import socket
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        s.bind(("0.0.0.0", port))
-        s.close()
-        return
-    except OSError:
-        pass
-    finally:
-        try:
-            s.close()
-        except Exception:
-            pass
-
     try:
         out = subprocess.check_output(f"netstat -ano | findstr :{port}", shell=True).decode(errors="ignore")
         for line in out.strip().splitlines():
@@ -66,20 +52,8 @@ def free_port(port=8000):
         pass
 
 def get_available_port(preferred_port=8000):
-    """Attempt preferred port, fallback to next available port if locked."""
+    """Clean port and return preferred port directly."""
     free_port(preferred_port)
-    import socket
-    for port in [preferred_port, preferred_port + 1, preferred_port + 2]:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            s.bind(("0.0.0.0", port))
-            s.close()
-            return port
-        except OSError:
-            try:
-                s.close()
-            except Exception:
-                pass
     return preferred_port
 
 def auto_launch_browser(port: int):
@@ -123,7 +97,15 @@ def main():
     auto_launch_browser(port)
     
     import uvicorn
-    uvicorn.run("backend.main:app", host="0.0.0.0", port=port, reload=False)
+    import traceback
+    try:
+        uvicorn.run("backend.main:app", host="0.0.0.0", port=port, reload=False, log_level="info")
+    except KeyboardInterrupt:
+        print("\n>> JARVIS Core Server stopped by user.")
+    except Exception as e:
+        print(f"\n>> JARVIS Core Server encountered an error: {e}")
+        traceback.print_exc()
 
 if __name__ == "__main__":
     main()
+

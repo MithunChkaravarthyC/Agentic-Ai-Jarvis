@@ -37,6 +37,13 @@
                 <span class="metric-val text-gold">ARMED (ACTIVE)</span>
             </div>
             <div class="metric-item">
+                <button id="gestureToggleBtn" class="hud-btn-ghost gesture-btn" title="Toggle MediaPipe Hand Gesture Controls (Runs on CPU)">
+                    <span class="gesture-icon">🖐️</span>
+                    <span id="gestureStatusText">GESTURES: STANDBY</span>
+                </button>
+                <div id="gestureFeedbackBadge" class="gesture-badge" style="display:none;"></div>
+            </div>
+            <div class="metric-item">
                 <button id="resetSessionBtn" class="hud-btn-ghost" title="Reset Session">⟳ RESET</button>
             </div>
         </div>
@@ -178,10 +185,13 @@
             <div class="quick-chips">
                 <button class="chip-btn" onclick="sendQuickPrompt('What time is it right now?')">🕒 Current Time</button>
                 <button class="chip-btn" onclick="sendQuickPrompt('What is the original climate and weather outside?')">🌤️ Live Weather</button>
+                <button class="chip-btn" onclick="sendQuickPrompt('Jarvis, look at my screen and tell me what is open')">💻 Look at Screen</button>
+                <button class="chip-btn" onclick="sendQuickPrompt('Jarvis, look at what I am holding and tell me what it is')">👁️ Inspect What I'm Holding</button>
+                <button class="chip-btn" onclick="sendQuickPrompt('Read this document in my hand')">📄 Read Handheld Doc</button>
+                <button class="chip-btn" onclick="sendQuickPrompt('Jarvis, enable gesture control')">🖐️ Enable Gestures</button>
                 <button class="chip-btn" onclick="sendQuickPrompt('Build a 3D website like lusion in a smooth way')">🌐 Lusion 3D Website</button>
                 <button class="chip-btn" onclick="sendQuickPrompt('Order a Chicken Biryani on Swiggy to Koramangala, Bangalore')">🍛 Swiggy Biryani</button>
                 <button class="chip-btn" onclick="sendQuickPrompt('Open Notepad')">📝 Open Notepad</button>
-                <button class="chip-btn" onclick="sendQuickPrompt('Book a flight from Mumbai to Delhi for next Monday')">✈️ Book Flight</button>
             </div>
 
             <!-- Input Controls -->

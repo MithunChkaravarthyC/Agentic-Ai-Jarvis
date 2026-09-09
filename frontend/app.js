@@ -47,6 +47,12 @@ class JarvisClient {
         this.resetSessionBtn = document.getElementById("resetSessionBtn");
         this.hudLiveClock = document.getElementById("hudLiveClock");
 
+        // MediaPipe Gesture Controls
+        this.gestureToggleBtn = document.getElementById("gestureToggleBtn");
+        this.gestureStatusText = document.getElementById("gestureStatusText");
+        this.gestureFeedbackBadge = document.getElementById("gestureFeedbackBadge");
+        this.gestureBadgeTimer = null;
+
         this.initClockTicker();
     }
 
@@ -140,7 +146,7 @@ class JarvisClient {
                     this.liveScreenshotImg.style.display = "block";
                     const placeholder = document.querySelector(".browser-placeholder");
                     if (placeholder) placeholder.style.display = "none";
-                    const browserTab = document.querySelector('.vtab[data-tab="browserStream"]');
+                    const browserTab = document.querySelector('.vtab[data-tab="liveView"]');
                     if (browserTab) browserTab.click();
                 }
                 break;
@@ -160,12 +166,22 @@ class JarvisClient {
                         window.open(data.details.portal_url, "_blank");
                     } catch (e) {}
                 }
-                if (data.details && data.details.screenshot_url) {
-                    this.liveScreenshotImg.src = data.details.screenshot_url;
+                const shotUrl = (data.details && data.details.screenshot_url) || data.screenshot_url;
+                if (shotUrl) {
+                    this.liveScreenshotImg.src = shotUrl;
                     this.liveScreenshotImg.style.display = "block";
                     const placeholder = document.querySelector(".browser-placeholder");
                     if (placeholder) placeholder.style.display = "none";
-                    const browserTab = document.querySelector('.vtab[data-tab="browserStream"]');
+                    if (this.browserUrlDisplay) {
+                        if (data.type === "screen_perception") {
+                            this.browserUrlDisplay.textContent = "screen://display-primary (MiniCPM-V Perception)";
+                        } else if (data.type === "webcam_perception") {
+                            this.browserUrlDisplay.textContent = "camera://lens-0 (Jarvis Eye MiniCPM-V Optics)";
+                        } else {
+                            this.browserUrlDisplay.textContent = "playwright://viewport";
+                        }
+                    }
+                    const browserTab = document.querySelector('.vtab[data-tab="liveView"]');
                     if (browserTab) browserTab.click();
                 }
                 break;
@@ -180,6 +196,22 @@ class JarvisClient {
                 this.chatContainer.innerHTML = "";
                 this.appendMessage("jarvis", data.message);
                 this.speak(data.audio_url, data.message);
+                break;
+
+            case "gesture_status":
+                if (this.gestureToggleBtn && this.gestureStatusText) {
+                    if (data.gesture_tracking) {
+                        this.gestureToggleBtn.classList.add("active");
+                        this.gestureStatusText.textContent = "GESTURES: ACTIVE";
+                    } else {
+                        this.gestureToggleBtn.classList.remove("active");
+                        this.gestureStatusText.textContent = "GESTURES: STANDBY";
+                    }
+                }
+                break;
+
+            case "gesture_detected":
+                this.showGestureFeedback(data);
                 break;
         }
     }
@@ -275,6 +307,64 @@ class JarvisClient {
         this.setReactorState("STANDBY", "STANDBY");
     }
 
+    showGestureFeedback(data) {
+        if (!data) return;
+        const gesture = data.gesture;
+        const action = data.action;
+        const label = data.label || gesture;
+
+        // Visual Feedback Badge on HUD Header
+        if (this.gestureFeedbackBadge) {
+            this.gestureFeedbackBadge.textContent = label;
+            this.gestureFeedbackBadge.style.display = "inline-flex";
+            this.gestureFeedbackBadge.classList.remove("pulse");
+            void this.gestureFeedbackBadge.offsetWidth;
+            this.gestureFeedbackBadge.classList.add("pulse");
+
+            if (this.gestureBadgeTimer) clearTimeout(this.gestureBadgeTimer);
+            this.gestureBadgeTimer = setTimeout(() => {
+                if (this.gestureFeedbackBadge) this.gestureFeedbackBadge.style.display = "none";
+            }, 3000);
+        }
+
+        // Action 1: Silence speech / stop audio playback
+        if (action === "silence_speech") {
+            if (this.currentAudio) {
+                try {
+                    this.currentAudio.pause();
+                    this.currentAudio.currentTime = 0;
+                } catch (e) {}
+                this.currentAudio = null;
+            }
+            if (window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+            }
+            this.setReactorState("STANDBY", "STANDBY");
+            this.appendMessage("jarvis", "✋ *Speech silenced by Open Palm gesture.*");
+        }
+
+        // Action 2: Confirm Payment / Approve Security Gate
+        else if (action === "confirm_payment") {
+            if (this.approvalModal && this.approvalModal.classList.contains("active")) {
+                this.confirmPaymentBtn.click();
+            }
+        }
+
+        // Action 3: Cancel Payment / Reject Security Gate
+        else if (action === "cancel_payment") {
+            if (this.approvalModal && this.approvalModal.classList.contains("active")) {
+                this.cancelPaymentBtn.click();
+            }
+        }
+
+        // Action 4: Wake / Toggle Voice Listening
+        else if (action === "wake_listening") {
+            if (!this.isListening) {
+                this.toggleListening();
+            }
+        }
+    }
+
     appendMessage(sender, text, meta = {}) {
         const msgCard = document.createElement("div");
         msgCard.className = `message-card ${sender === "user" ? "user-card" : "jarvis-card"}`;
@@ -352,6 +442,29 @@ class JarvisClient {
                     <div class="weather-card-footer">
                         <span>Daily: <strong>${w.temp_min_c}°C</strong> to <strong>${w.temp_max_c}°C</strong></span>
                         <span class="live-dot-tag">● LIVE OPEN-METEO SENSORS</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Screen / Webcam Perception Screenshot Widget
+        if (meta && (meta.screenshot_url || (meta.details && meta.details.screenshot_url))) {
+            const shot = meta.screenshot_url || meta.details.screenshot_url;
+            const tele = meta.telemetry || (meta.details && meta.details.telemetry) || {};
+            const isWebcam = meta.type === "webcam_perception" || (meta.details && meta.details.action_type === "webcam_perception");
+            const badgeTitle = isWebcam ? "📷 PHYSICAL OPTICS SNAPSHOT (JARVIS EYE)" : "📷 SCREEN PERCEPTION SNAPSHOT";
+            widgetHtml += `
+                <div class="hud-embedded-card screenshot-card" style="margin-top:12px; background:rgba(0,240,255,0.04); border:1px solid rgba(0,240,255,0.25); border-radius:8px; padding:10px; overflow:hidden;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:11px; color:#00f0ff; letter-spacing:1px; text-transform:uppercase; font-weight:700;">
+                        <span>${badgeTitle}</span>
+                        <span>${tele.resolution ? tele.resolution[0] + 'x' + tele.resolution[1] : '1280x720'} | ${tele.file_size_kb || 23} KB</span>
+                    </div>
+                    <a href="${shot}" target="_blank" title="Click to open full screenshot in new tab">
+                        <img src="${shot}" alt="Captured Screen" style="width:100%; max-height:220px; object-fit:contain; border-radius:4px; border:1px solid rgba(0,240,255,0.2); transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.01)'" onmouseout="this.style.transform='scale(1)'"/>
+                    </a>
+                    <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:10px; color:#94a3b8;">
+                        <span>Infer: <strong>${tele.infer_time_ms || 0}ms</strong> | Total: <strong>${tele.total_time_ms || 0}ms</strong></span>
+                        <span style="color:#00f0ff;">⚡ MiniCPM-V (VRAM Evicted)</span>
                     </div>
                 </div>
             `;
@@ -592,17 +705,23 @@ class JarvisClient {
         const utterance = new SpeechSynthesisUtterance(clean);
         utterance.lang = "en-GB";
 
-        // Prioritize natural British voices (George, Ryan, UK English)
-        const voices = window.speechSynthesis.getVoices();
-        const britishVoice = voices.find(v => 
-            v.lang === "en-GB" || 
-            v.name.includes("UK") || 
-            v.name.includes("British") || 
-            v.name.includes("George") ||
-            v.name.includes("Ryan")
-        );
-        if (britishVoice) utterance.voice = britishVoice;
-        utterance.rate = 1.08; // Crisp executive cadence
+        // Prioritize natural British voices (George, Ryan, UK English, Hazel, Oliver)
+        const getPreferredVoice = () => {
+            const voices = window.speechSynthesis.getVoices();
+            return voices.find(v => 
+                v.lang === "en-GB" || 
+                v.name.includes("UK") || 
+                v.name.includes("British") || 
+                v.name.includes("George") ||
+                v.name.includes("Ryan") ||
+                v.name.includes("Oliver") ||
+                v.name.includes("Natural")
+            ) || voices.find(v => v.lang.startsWith("en"));
+        };
+
+        const preferred = getPreferredVoice();
+        if (preferred) utterance.voice = preferred;
+        utterance.rate = 1.05; // Crisp executive cadence
 
         utterance.onstart = () => this.setReactorState("ACTIVE", "SPEAKING (0ms INSTANT)");
         utterance.onended = () => this.setReactorState("STANDBY", "STANDBY");
@@ -660,6 +779,14 @@ class JarvisClient {
         this.resetSessionBtn.addEventListener("click", () => {
             this.ws.send(JSON.stringify({ action: "reset_session" }));
         });
+
+        if (this.gestureToggleBtn) {
+            this.gestureToggleBtn.addEventListener("click", () => {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    this.ws.send(JSON.stringify({ action: "toggle_gestures" }));
+                }
+            });
+        }
 
         // Viewport Tab Switcher
         document.querySelectorAll(".vtab").forEach(tab => {

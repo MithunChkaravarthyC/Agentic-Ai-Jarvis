@@ -1,11 +1,14 @@
-# Lusion Neo // Creative 3D Studio — Lusion 3D Interactive Web Experience
+# JarvisWebApp
 
-Autonomous 3D Web Application architected by **J.A.R.V.I.S. Multi-Agent Protocol**.
+JarvisWebApp is an ultra-smooth 3D web application inspired by Lusion (lusion.co). It features organic and crystalline parametric meshes, dynamic colored lighting, an interactive particle cloud, and on-canvas controls.
 
-## Core Lusion-Grade Features
-- **Silky 60 FPS Three.js Kinematics**: Normalized mouse tracking with 0.05 lerp dampening for liquid, organic momentum.
-- **Physical Glass & Iridescent PBR**: Real-time MeshPhysicalMaterial with transmission, clearcoat, and multi-point cinematic lighting.
-- **Interactive 3D Studio Workbench**: Instant on-canvas controls for morphing geometries (Torus Knot, Organic Icosahedron, Quantum Core), wireframe mode, and particle density.
-- **Dynamic Chromatic Theme Shift**: Real-time color palettes (Cyber Cyan, Neon Magenta, Emerald Matrix, Solar Amber, Obsidian Mono).
-- **Web Audio API Synthesizer**: Procedural acoustic clicks and holographic sweeps without external sound files.
-- **Fluid Magnetic Cursor**: Interactive cursor dot and fluid ring follower.
+## Features
+
+- **3D Graphics**: Organic and crystalline parametric meshes (Torus Knot, organic icosahedron with noise, floating ribbons).
+- **Dynamic Lighting**: Multi-point dynamic colored lighting (cyan, magenta, solar amber).
+- **Interactive Particle Cloud**: 1,500+ particles with mouse repulsion or inertia drag.
+- **On-Canvas Controls**: Wireframe toggle, particle slider, color theme switcher.
+
+## Installation
+
+1. Clone the repository:

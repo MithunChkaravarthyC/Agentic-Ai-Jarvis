@@ -28,6 +28,7 @@ from backend.agents.jarvis_orchestrator import jarvis_orchestrator
 from backend.agents.booking_agent import booking_agent
 from backend.agents.tts_agent import tts_agent
 from backend.tools.process_manager import process_manager
+from backend.tools.gesture_detector import gesture_detector
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("JarvisServer")
@@ -58,6 +59,14 @@ async def on_startup():
         asyncio.create_task(asyncio.to_thread(tts_agent.warmup))
     except Exception as e:
         logger.warning(f"Startup warmup note: {e}")
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    """Cleanly stop gesture tracking on server shutdown."""
+    try:
+        gesture_detector.stop()
+    except Exception as e:
+        logger.warning(f"Shutdown cleanup note: {e}")
 
 # Mount screenshots, audio, generated projects, and static frontend assets
 app.mount("/screenshots", StaticFiles(directory=str(SCREENSHOTS_DIR)), name="screenshots")
@@ -128,10 +137,13 @@ async def list_projects():
     return {"projects": projects, "running": process_manager.list_running()}
 
 # --- WebSocket for Realtime Voice, Chat & Telemetry ---
+active_clients = set()
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    logger.info("New WebSocket client connected to JARVIS HUD.")
+    active_clients.add(websocket)
+    logger.info(f"New WebSocket client connected to JARVIS HUD ({len(active_clients)} active).")
 
     async def emit_ws_event(event_type: str, data: dict):
         try:
@@ -160,6 +172,37 @@ async def websocket_endpoint(websocket: WebSocket):
             except Exception as tts_err:
                 logger.warning(f"Background TTS error: {tts_err}")
 
+        loop = asyncio.get_running_loop()
+
+        def on_gesture_detected(gesture_data: dict):
+            """Callback from GestureDetector background thread."""
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    emit_ws_event("gesture_detected", gesture_data),
+                    loop
+                )
+                # Auto-trigger payment security gate actions if active
+                if booking_agent.pending_confirmation:
+                    act = gesture_data.get("action")
+                    if act == "confirm_payment":
+                        logger.info("[WebSocket] Gesture THUMBS_UP triggered automatic payment confirmation!")
+                        res = booking_agent.confirm_payment()
+                        asyncio.run_coroutine_threadsafe(
+                            emit_ws_event("payment_result", res),
+                            loop
+                        )
+                    elif act == "cancel_payment":
+                        logger.info("[WebSocket] Gesture THUMBS_DOWN triggered automatic payment cancellation!")
+                        res = booking_agent.cancel_payment()
+                        asyncio.run_coroutine_threadsafe(
+                            emit_ws_event("payment_result", res),
+                            loop
+                        )
+            except Exception as ge:
+                logger.warning(f"Gesture dispatch error: {ge}")
+
+        gesture_detector.register_callback(on_gesture_detected)
+
         while True:
             raw_text = await websocket.receive_text()
             data = json.loads(raw_text)
@@ -183,6 +226,19 @@ async def websocket_endpoint(websocket: WebSocket):
                 if reply_text and not response.get("audio_url"):
                     asyncio.create_task(stream_tts(reply_text))
 
+            elif action == "toggle_gestures":
+                result = gesture_detector.toggle()
+                await emit_ws_event("gesture_status", {
+                    "gesture_tracking": gesture_detector.is_tracking,
+                    "message": result.get("message")
+                })
+
+            elif action == "simulate_gesture":
+                gesture_name = data.get("gesture", "Thumb_Up")
+                sim_res = gesture_detector.simulate_gesture(gesture_name)
+                # Callback already dispatches event; also echo back acknowledgment
+                await emit_ws_event("gesture_simulated", sim_res)
+
             elif action == "confirm_payment":
                 res = booking_agent.confirm_payment()
                 tts_res = await tts_agent.synthesize(res.get("message", ""))
@@ -205,6 +261,13 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.info("WebSocket client disconnected.")
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
+    finally:
+        active_clients.discard(websocket)
+        if on_gesture_detected in gesture_detector.callbacks:
+            gesture_detector.callbacks.remove(on_gesture_detected)
+        if len(active_clients) == 0 and gesture_detector.is_tracking:
+            logger.info("No active HUD clients remaining. Auto-deactivating gesture camera.")
+            gesture_detector.stop()
 
 if __name__ == "__main__":
     import uvicorn

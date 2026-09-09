@@ -76,11 +76,14 @@ class TTSAgent:
                     await self._generate_edge_tts(clean, self.voice, str(target_mp3))
 
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
+            try:
+                loop = asyncio.get_running_loop()
                 asyncio.create_task(_warmup_async())
-            else:
-                loop.run_until_complete(_warmup_async())
+            except RuntimeError:
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                new_loop.run_until_complete(_warmup_async())
+                new_loop.close()
             logger.info("TTS phrase cache pre-warmed for instant sub-second playback.")
         except Exception as e:
             logger.warning(f"TTS warmup note: {e}")

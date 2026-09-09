@@ -71,7 +71,8 @@ class OllamaClient:
         prompt: str,
         system: Optional[str] = None,
         images: Optional[List[str]] = None,
-        options: Optional[Dict[str, Any]] = None
+        options: Optional[Dict[str, Any]] = None,
+        keep_alive: Optional[Any] = None
     ) -> str:
         """Fetch non-streaming generation from Ollama with automatic fallback."""
         payload: Dict[str, Any] = {
@@ -85,6 +86,8 @@ class OllamaClient:
             payload["images"] = images
         if options:
             payload["options"] = options
+        if keep_alive is not None:
+            payload["keep_alive"] = keep_alive
 
         timeout = httpx.Timeout(60.0, connect=10.0)
         try:
@@ -96,6 +99,20 @@ class OllamaClient:
                     logger.warning(f"Model {model} returned status {res.status_code}")
         except Exception as e:
             logger.error(f"Failed to generate with {model}: {e}")
+
+    async def unload_model(self, model: str):
+        """Immediately evict model from GPU VRAM by setting keep_alive to 0."""
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.post(
+                    f"{self.base_url}/api/generate",
+                    json={"model": model, "prompt": "", "keep_alive": 0}
+                )
+                logger.info(f"Model '{model}' evicted from GPU VRAM (status {res.status_code}).")
+                return True
+        except Exception as e:
+            logger.debug(f"Note unloading model {model}: {e}")
+            return False
 
         # Fallback to lighter model if primary model had an issue
         fallback_model = MODEL_ROUTING.get("coder_fallback", "llama3.2:latest")

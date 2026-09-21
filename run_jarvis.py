@@ -18,7 +18,7 @@ def check_and_install_dependencies():
     print("   J.A.R.V.I.S. MULTI-AGENT PROTOCOL INITIALIZATION    ")
     print("=======================================================")
     
-    packages = ["fastapi", "uvicorn", "playwright", "httpx", "pydantic", "edge_tts", "mss"]
+    packages = ["fastapi", "uvicorn", "playwright", "httpx", "pydantic", "edge_tts", "mss", "sounddevice", "numpy", "speech_recognition"]
     missing = []
     for pkg in packages:
         try:
@@ -56,26 +56,6 @@ def get_available_port(preferred_port=8000):
     free_port(preferred_port)
     return preferred_port
 
-def auto_launch_browser(port: int):
-    """Wait for server to bind and automatically pop open the JARVIS HUD in browser."""
-    import threading
-    import webbrowser
-
-    def _open():
-        time.sleep(1.2)
-        url = f"http://localhost:{port}"
-        print(f">> Launching JARVIS Interface in your browser: {url}")
-        try:
-            webbrowser.open(url, new=2)
-        except Exception:
-            try:
-                os.startfile(url)
-            except Exception:
-                pass
-
-    t = threading.Thread(target=_open, daemon=True)
-    t.start()
-
 def main():
     check_and_install_dependencies()
     port = int(os.getenv("PORT", 0)) or get_available_port(8000)
@@ -90,11 +70,18 @@ def main():
         print(f">> [Note] TTS warmup: {e}")
 
     print(">> Launching JARVIS Core Server...")
-    print(f">> JARVIS HUD available at: http://localhost:{port}")
+    print(f">> JARVIS Core listening at: http://localhost:{port}")
+    print(">> [STANDBY MODE]: Chrome will NOT launch automatically.")
+    print(">> [WAKE TRIGGER]: Clap twice (👏 👏) and say 'Wake up Jarvis' to activate Chrome!")
     print(">> Press Ctrl+C to terminate.")
     print("=======================================================")
 
-    auto_launch_browser(port)
+    # Initialize Acoustic Wake Listener (Double Clap + "Wake up Jarvis")
+    try:
+        from backend.tools.wake_detector import start_wake_word_listener
+        start_wake_word_listener(port)
+    except Exception as e:
+        print(f">> [Note] Acoustic wake listener: {e}")
     
     import uvicorn
     import traceback
